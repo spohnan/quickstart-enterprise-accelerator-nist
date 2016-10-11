@@ -362,6 +362,11 @@
               - 
                 Ref: "AWS::Region"
               - "InstanceType"
+          QuickStartS3URL:
+            Fn::FindInMap:
+              - AWSInfoRegionMap
+              - Ref: AWS::Region
+              - QuickStartS3URL
           QSS3BucketName: 
             Ref: "QSS3BucketName"
           QSS3KeyPrefix: 
@@ -448,6 +453,11 @@
               - 
                 Ref: "AWS::Region"
               - "InstanceType"
+          QuickStartS3URL:
+            Fn::FindInMap:
+              - AWSInfoRegionMap
+              - Ref: AWS::Region
+              - QuickStartS3URL
           QSS3BucketName: 
             Ref: "QSS3BucketName"
           QSS3KeyPrefix: 
@@ -585,7 +595,7 @@
                 Ref: "AWS::Region"
               - "Glacier"
           QuickStartS3URL:
-            - Fn::FindInMap:
+            Fn::FindInMap:
               - AWSInfoRegionMap
               - Ref: AWS::Region
               - QuickStartS3URL
