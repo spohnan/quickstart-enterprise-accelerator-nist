@@ -39,6 +39,12 @@
             - "pDBPassword"
             - "pDBClass"
             - "pDBAllocatedStorage"
+        - Label:
+            default: "AWS Quick Start Configuration"
+          Parameters:
+          - "QuickStartS3URL"
+          - "QSS3BucketName"
+          - "QSS3KeyPrefix"
     Stack: 
       Value: "3"
     VersionDate: 
@@ -133,10 +139,31 @@
       Description: "Determines whether this region supports Glacier (passed in from main template)"
       Type: "String"
       Default: "true"
-    pTemplateUrlPrefix: 
-      Description: "URL prefix used to various assets"
-      Type: "String"
-      Default: ""
+    QSS3BucketName:
+      AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+      ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+        letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+        (-).
+      Default: quickstart-reference
+      Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
+        can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+        It cannot start or end with a hyphen (-).
+      Type: String
+    QSS3KeyPrefix:
+      AllowedPattern: "^[0-9a-zA-Z-]+(/[0-9a-zA-Z-]+)*$"
+      ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+        uppercase letters, hyphens (-), and forward slash (/). It cannot start or end
+        with forward slash (/) because they are automatically appended.
+      Default: quickstart-enterprise-accelerator-nist
+      Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
+        can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+        forward slash (/). It cannot start or end with forward slash (/) because they
+        are automatically appended.
+      Type: String
+    QuickStartS3URL:
+      Description: Quick Start S3 URL prefix.
+      Default: https://s3.amazonaws.com
+      Type: String
   Mappings: 
     elbMap: 
       us-east-1: 
@@ -842,17 +869,16 @@
           copy_landing_content: 
             sources: 
               /var/www/html: 
-                Fn::Join: 
-                  - ""
-                  - 
-                    - 
-                      Ref: "pTemplateUrlPrefix"
-                    - "assets/landing.zip"
+                Fn::Join:
+                - "/"
+                -
+                  - Ref: QuickStartS3URL
+                  - Ref: QSS3BucketName
+                  - Ref: QSS3KeyPrefix
+                  - assets/landing.zip
             commands: 
               01_configure_permissions: 
-                command: "sudo chmod 644 /var/www/html/landing.html"
-              02_configure_permissions: 
-                command: "sudo chmod 755 -R /var/www/html/images"
+                command: "sudo chmod 644 -R /var/www/html"
           install_wordpress: 
             packages: 
               yum: 

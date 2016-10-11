@@ -584,6 +584,15 @@
               - 
                 Ref: "AWS::Region"
               - "Glacier"
+          QuickStartS3URL:
+            - Fn::FindInMap:
+              - AWSInfoRegionMap
+              - Ref: AWS::Region
+              - QuickStartS3URL
+          QSS3BucketName: 
+            Ref: "QSS3BucketName"
+          QSS3KeyPrefix: 
+            Ref: "QSS3KeyPrefix"
 
   Outputs: 
     TemplateType: 
