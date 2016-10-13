@@ -15,11 +15,7 @@ global:
     - us-west-1
     - us-west-2
   reporting: true
- 
 tests:
-  quickstart-enterprise-accelerator-nistt1:
-    parameter_input: quickstart-enterprise-accelerator-nist-example-params1.json
-    template_file: quickstart-enterprise-accelerator-nist-example1.template
-  quickstart-enterprise-accelerator-nistt2:
-    parameter_input: quickstart-enterprise-accelerator-nist-example-params2.json
-    template_file: quickstart-enterprise-accelerator-nist-example2.template
+  defaults:
+    parameter_input: defaults.json
+    template_file: main.template
