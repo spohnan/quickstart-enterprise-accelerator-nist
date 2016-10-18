@@ -168,6 +168,8 @@
     elbMap: 
       us-east-1: 
         ELB: "127311923021"
+      us-east-2: 
+        ELB: "033677994240"
       us-west-1: 
         ELB: "027434742980"
       us-west-2: 
@@ -871,16 +873,14 @@
               /var/www/html: 
                 Fn::Join:
                 - "/"
-                -
+                - 
                   - Ref: QuickStartS3URL
                   - Ref: QSS3BucketName
                   - Ref: QSS3KeyPrefix
                   - assets/landing.zip
             commands: 
               01_configure_permissions: 
-                command: "sudo chmod 644 /var/www/html/landing.html"
-              02_configure_permissions: 
-                command: "sudo chmod 644 -R /var/www/html/images"
+                command: "sudo chmod 755 -R /var/www/html"
           install_wordpress: 
             packages: 
               yum: 

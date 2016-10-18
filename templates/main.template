@@ -140,6 +140,9 @@
       us-east-1:
         Partition: aws
         QuickStartS3URL: https://s3.amazonaws.com
+      us-east-2:
+        Partition: aws
+        QuickStartS3URL: https://s3.amazonaws.com
       us-gov-west-1:
         Partition: aws-us-gov
         QuickStartS3URL: https://s3-us-gov-west-1.amazonaws.com
@@ -157,6 +160,10 @@
         Value: "development"
     RegionServiceSupport: 
       us-east-1: 
+        ConfigRules: "true"
+        NatGateway: "true"
+        Glacier: "true"
+      us-east-2: 
         ConfigRules: "true"
         NatGateway: "true"
         Glacier: "true"
@@ -206,6 +213,10 @@
         Glacier: "false"
     RegionMap: 
       us-east-1: 
+        AMI: "ami-c481fad3"
+        InstanceType: "m4.large"
+        InstanceTypeDatabase: "db.m4.large"
+      us-east-2: 
         AMI: "ami-c481fad3"
         InstanceType: "m4.large"
         InstanceTypeDatabase: "db.m4.large"
