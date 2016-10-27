@@ -21,11 +21,11 @@
     },
     {
         "ParameterKey": "pAvailabilityZoneA",
-        "ParameterValue": "$[alfred_genaz_1]"
+        "ParameterValue": "$[alfred_gen1az_1]"
     },
     {
         "ParameterKey": "pAvailabilityZoneB",
-        "ParameterValue": "$[alfred_genaz_1]"
+        "ParameterValue": "$[alfred_gen1az_2]"
     },
     {
         "ParameterKey": "pVPCTenancy",
