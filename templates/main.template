@@ -175,12 +175,20 @@
         ConfigRules: "true"
         NatGateway: "true"
         Glacier: "true"
+      ca-central-1:
+        ConfigRules: "false"
+        NatGateway: "true"
+        Glacier: "true"
       eu-central-1:
         NatGateway: "true"
         ConfigRules: "true"
         Glacier: "true"
       eu-west-1:
         ConfigRules: "true"
+        NatGateway: "true"
+        Glacier: "true"
+      eu-west-2:
+        ConfigRules: "false"
         NatGateway: "true"
         Glacier: "true"
       ap-northeast-1:
@@ -228,8 +236,16 @@
         AMI: "ami-b04e92d0"
         InstanceType: "m4.large"
         InstanceTypeDatabase: "db.m4.large"
+      ca-central-1:
+        AMI: "ami-b48b39d0"
+        InstanceType: "m4.large"
+        InstanceTypeDatabase: "db.m4.large"
       eu-west-1:
         AMI: "ami-d41d58a7"
+        InstanceType: "m4.large"
+        InstanceTypeDatabase: "db.m4.large"
+      eu-west-2:
+        AMI: "ami-d6cbc1b2"
         InstanceType: "m4.large"
         InstanceTypeDatabase: "db.m4.large"
       eu-central-1:
