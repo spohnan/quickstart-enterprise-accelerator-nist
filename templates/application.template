@@ -880,10 +880,7 @@ Resources:
           echo Send notification message...
           aws sns publish --topic-arn ${pSecurityAlarmTopic} \
             --subject "CloudFormation successfully launched ${AWS::StackName}" \
-            --message "What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. \
-                       Please note that the application server might be finishing up its initialization. \
-                       If the link doesn't respond right away, please try it again in few minutes. \
-                       This page resides on an application server in your new environment." \
+            --message "What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. Please note that the application server might be finishing up its initialization. If the link doesn't respond right away, please try it again in few minutes. This page resides on an application server in your new environment." \
             --region ${AWS::Region}
 
           echo Self-destruct!
