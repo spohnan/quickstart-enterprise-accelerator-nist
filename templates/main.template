@@ -70,11 +70,11 @@ Parameters:
         Description: The SSH key pair in your account to use for all other EC2 instance logins
         Type: AWS::EC2::KeyPair::KeyName
     pSupportsConfig:
-        Description: 'Is AWS Config Rules already configured for this region? Use No if you are uncertain. AWS Config Rules is available in these regions: US East (Virginia), US West (Oregon), EU West (Ireland), and EU Central (Frankfurt). See AWS Config Management Console or Deployment Guide for details.'
+        Description: 'Is AWS Config Rules already configured for this region? Use false if you are uncertain. AWS Config Rules is available in these regions: US East (Virginia), US West (Oregon), EU West (Ireland), and EU Central (Frankfurt). See AWS Config Management Console or Deployment Guide for details.'
         AllowedValues:
-          - Yes
-          - No
-        Default: No
+          - true
+          - false
+        Default: false
         Type: String
     pAvailabilityZoneA:
         Description: Availability Zone 1
@@ -104,16 +104,16 @@ Parameters:
     pLaunchCentralLogging:
         Description: Do you want to include the Central Logging solution with this stack?
         AllowedValues:
-          - Yes
-          - No
-        Default: No
+          - true
+          - false
+        Default: false
         Type: String
     pDashboardAdminUser:
         Type: String
         Description: Dashboard admin user name.
     pDashboardAdminPassword:
         Type: String
-        NoEcho: True
+        NoEcho: true
         Description: >
           Dashboard admin password.
           Must contain at least 6 characters with 1 Upper, 1 Lower, 1 number and 1 Special (!@#$%&).
@@ -175,95 +175,95 @@ Mappings:
             Value: development
     RegionServiceSupport:
         us-east-1:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         us-east-2:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         us-west-1:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: No
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: false
+            Lambda: true
+            ElasticSearch: true
         us-west-2:
-            ConfigRules: No
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: false
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         ca-central-1:
-            NatGateway: Yes
-            ConfigRules: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            NatGateway: true
+            ConfigRules: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         eu-central-1:
-            NatGateway: Yes
-            ConfigRules: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            NatGateway: true
+            ConfigRules: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         eu-west-1:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         eu-west-2:
-            ConfigRules: No
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
-        ap-northeast-1:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
-        ap-northeast-2:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: No
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: false
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
+        ap-falsertheast-1:
+            ConfigRules: true
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
+        ap-falsertheast-2:
+            ConfigRules: true
+            NatGateway: true
+            Glacier: false
+            Lambda: true
+            ElasticSearch: true
         ap-south-1:
-            ConfigRules: No
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: No
-            ElasticSearch: Yes
+            ConfigRules: false
+            NatGateway: true
+            Glacier: true
+            Lambda: false
+            ElasticSearch: true
         ap-southeast-1:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: No
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: false
+            Lambda: true
+            ElasticSearch: true
         ap-southeast-2:
-            ConfigRules: Yes
-            NatGateway: Yes
-            Glacier: Yes
-            Lambda: Yes
-            ElasticSearch: Yes
+            ConfigRules: true
+            NatGateway: true
+            Glacier: true
+            Lambda: true
+            ElasticSearch: true
         sa-east-1:
-            ConfigRules: No
-            NatGateway: Yes
-            Glacier: No
-            Lambda: No
-            ElasticSearch: Yes
+            ConfigRules: false
+            NatGateway: true
+            Glacier: false
+            Lambda: false
+            ElasticSearch: true
         us-gov-west-1:
-            ConfigRules: No
-            NatGateway: No
-            Glacier: No
-            Lambda: No
-            ElasticSearch: No
+            ConfigRules: false
+            NatGateway: false
+            Glacier: false
+            Lambda: false
+            ElasticSearch: false
     RegionMap:
         us-east-1:
             AMI: ami-c481fad3
@@ -326,12 +326,12 @@ Mappings:
             InstanceType: m4.large
             InstanceTypeDatabase: db.m3.large
 Conditions:
-    LoadConfigRulesTemplate: !Equals [ !Ref 'pSupportsConfig', Yes ]
-    LaunchAsDedicatedInstance: !Equals [ !Ref 'pVPCTenancy', 'dedicated' ]
+    LoadConfigRulesTemplate: !Equals [ true, !Ref pSupportsConfig ]
+    LaunchAsDedicatedInstance: !Equals [ dedicated, !Ref pVPCTenancy ]
     LaunchCentralLogging: !And
-      - !Equals [ !Ref 'pLaunchCentralLogging', Yes ]
-      - !Equals [ !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', Lambda ], Yes ]
-      - !Equals [ !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', ElasticSearch ], Yes ]
+      - !Equals [ true, !Ref pLaunchCentralLogging ]
+      - !Equals [ true, !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', Lambda ] ]
+      - !Equals [ true, !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', ElasticSearch ] ]
 Resources:
     IamTemplate:
         Type: AWS::CloudFormation::Stack
