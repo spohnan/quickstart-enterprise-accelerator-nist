@@ -1,4 +1,3 @@
----
 AWSTemplateFormatVersion: 2010-09-09
 Description: Enterprise Accelerator - Provides nesting for required stacks to deploy a full sample web application with reverse proxy, ELBs, IAM, and other resources (for demonstration/POC/testing)
 Metadata:
@@ -71,11 +70,11 @@ Parameters:
         Description: The SSH key pair in your account to use for all other EC2 instance logins
         Type: AWS::EC2::KeyPair::KeyName
     pSupportsConfig:
-        Description: "Is AWS Config Rules already configured for this region? Use 'No' if you are uncertain. AWS Config Rules is available in these regions: US East (Virginia), US West (Oregon), EU West (Ireland), and EU Central (Frankfurt). See AWS Config Management Console or Deployment Guide for details."
+        Description: 'Is AWS Config Rules already configured for this region? Use No if you are uncertain. AWS Config Rules is available in these regions: US East (Virginia), US West (Oregon), EU West (Ireland), and EU Central (Frankfurt). See AWS Config Management Console or Deployment Guide for details.'
         AllowedValues:
-          - 'Yes'
-          - 'No'
-        Default: 'No'
+          - Yes
+          - No
+        Default: No
         Type: String
     pAvailabilityZoneA:
         Description: Availability Zone 1
@@ -91,7 +90,7 @@ Parameters:
           - default
           - dedicated
     QSS3BucketName:
-        AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$
+        AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z\-\.]*[0-9a-zA-Z])*$
         ConstraintDescription: Quick Start bucket name can include numbers, lowercase letters, uppercase letters, periods (.), and hyphens (-). It cannot start or end with a hyphen (-).
         Default: quickstart-reference
         Description: S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
@@ -105,9 +104,9 @@ Parameters:
     pLaunchCentralLogging:
         Description: Do you want to include the Central Logging solution with this stack?
         AllowedValues:
-          - 'Yes'
-          - 'No'
-        Default: 'No'
+          - Yes
+          - No
+        Default: No
         Type: String
     pDashboardAdminUser:
         Type: String
@@ -169,7 +168,6 @@ Mappings:
         us-west-2:
             Partition: aws
             QuickStartS3URL: https://s3.amazonaws.com
-
     CustomVariables:
         vResourceEnvironmentTagKey:
             Value: Environment
@@ -177,95 +175,95 @@ Mappings:
             Value: development
     RegionServiceSupport:
         us-east-1:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         us-east-2:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         us-west-1:
-            ConfigRules: true
-            NatGateway: false
-            Glacier: false
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: No
+            Lambda: Yes
+            ElasticSearch: Yes
         us-west-2:
-            ConfigRules: false
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: No
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         ca-central-1:
-            NatGateway: true
-            ConfigRules: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            NatGateway: Yes
+            ConfigRules: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         eu-central-1:
-            NatGateway: true
-            ConfigRules: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            NatGateway: Yes
+            ConfigRules: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         eu-west-1:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         eu-west-2:
-            ConfigRules: false
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: No
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         ap-northeast-1:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         ap-northeast-2:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: false
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: No
+            Lambda: Yes
+            ElasticSearch: Yes
         ap-south-1:
-            ConfigRules: false
-            NatGateway: true
-            Glacier: true
-            Lambda: false
-            ElasticSearch: true
+            ConfigRules: No
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: No
+            ElasticSearch: Yes
         ap-southeast-1:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: false
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: No
+            Lambda: Yes
+            ElasticSearch: Yes
         ap-southeast-2:
-            ConfigRules: true
-            NatGateway: true
-            Glacier: true
-            Lambda: true
-            ElasticSearch: true
+            ConfigRules: Yes
+            NatGateway: Yes
+            Glacier: Yes
+            Lambda: Yes
+            ElasticSearch: Yes
         sa-east-1:
-            ConfigRules: false
-            NatGateway: true
-            Glacier: false
-            Lambda: false
-            ElasticSearch: true
+            ConfigRules: No
+            NatGateway: Yes
+            Glacier: No
+            Lambda: No
+            ElasticSearch: Yes
         us-gov-west-1:
-            ConfigRules: false
-            NatGateway: false
-            Glacier: false
-            Lambda: false
-            ElasticSearch: false
+            ConfigRules: No
+            NatGateway: No
+            Glacier: No
+            Lambda: No
+            ElasticSearch: No
     RegionMap:
         us-east-1:
             AMI: ami-c481fad3
@@ -328,12 +326,12 @@ Mappings:
             InstanceType: m4.large
             InstanceTypeDatabase: db.m3.large
 Conditions:
-    LoadConfigRulesTemplate: !Equals [ !Ref 'pSupportsConfig', 'Yes' ]
+    LoadConfigRulesTemplate: !Equals [ !Ref 'pSupportsConfig', Yes ]
     LaunchAsDedicatedInstance: !Equals [ !Ref 'pVPCTenancy', 'dedicated' ]
     LaunchCentralLogging: !And
-      - !Equals [ !Ref 'pLaunchCentralLogging', 'Yes']
-      - !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', Lambda ]
-      - !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', ElasticSearch ]
+      - !Equals [ !Ref 'pLaunchCentralLogging', Yes ]
+      - !Equals [ !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', Lambda ], Yes ]
+      - !Equals [ !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', ElasticSearch ], Yes ]
 Resources:
     IamTemplate:
         Type: AWS::CloudFormation::Stack
@@ -381,8 +379,8 @@ Resources:
                 QSS3BucketName: !Ref QSS3BucketName
                 QSS3KeyPrefix: !Ref QSS3KeyPrefix
     ManagementVpcTemplate:
-        Type: "AWS::CloudFormation::Stack"
-        DependsOn: "ProductionVpcTemplate"
+        Type: AWS::CloudFormation::Stack
+        DependsOn: ProductionVpcTemplate
         Properties:
             TemplateURL: !Sub
               - ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/submodules/quickstart-compliance-common/templates/vpc-management.template
@@ -430,18 +428,22 @@ Resources:
             Parameters:
                 pRequiredTagKey: !FindInMap [ CustomVariables, vResourceEnvironmentTagKey, Value ]
     CentralLoggingTemplate:
+        Condition: LaunchCentralLogging
+        DependsOn: ManagementVpcTemplate
         Type: AWS::CloudFormation::Stack
         Properties:
             TemplateURL: !Sub
+              - ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/templates/central-logging.template
+              - { QuickStartS3URL: !FindInMap [ AWSInfoRegionMap, !Ref 'AWS::Region', QuickStartS3URL ] }
             TimeoutInMinutes: 60
             Parameters:
-                pAppSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetA ]
-                pAppSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetB ]
+                pAppSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetA ]
+                pAppSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetB ]
                 pDashboardSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetA ]
                 pDashboardSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetB ]
                 pS3ArtifactsBucket: !Ref QSS3BucketName
-                pNatEIP: !GetAtt [ ManagementVpcTemplate, Outputs.rEipNat ]
-                pESDomainName: ${AWS::StackName}
+                pNatEIP: !GetAtt [ ManagementVpcTemplate, Outputs.rEIPManagementNAT ]
+                pESDomainName: !Sub ${AWS::StackName}
                 pAppAMI: !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
                 pVpcId: !GetAtt [ ManagementVpcTemplate, Outputs.rVPCManagement ]
                 pESNodeCount: 2
