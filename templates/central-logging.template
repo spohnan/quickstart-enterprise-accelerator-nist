@@ -1,4 +1,3 @@
----
 AWSTemplateFormatVersion: 2010-09-09
 Description: Centralized CloudTrail and VPC FlowLogs analysis system built on Elasticsearch and Kibana.
 Mappings:
@@ -99,8 +98,8 @@ Resources:
                     Principal:
                         Service:
                           - ec2.amazonaws.com
-                        Action:
-                          - sts:AssumeRole
+                    Action:
+                      - sts:AssumeRole
             Path: /
             Policies:
               - PolicyName: S3Access
