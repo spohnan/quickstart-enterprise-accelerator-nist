@@ -176,7 +176,7 @@ Mappings:
     RegionServiceSupport:
         us-east-1:
             ConfigRules: true
-            NatGateway: true
+            NatGateway: false
             Glacier: true
             Lambda: true
             ElasticSearch: true
@@ -437,11 +437,12 @@ Resources:
               - { QuickStartS3URL: !FindInMap [ AWSInfoRegionMap, !Ref 'AWS::Region', QuickStartS3URL ] }
             TimeoutInMinutes: 60
             Parameters:
-                pAppSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetA ]
-                pAppSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetB ]
+                pAppSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetA ]
+                pAppSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetB ]
                 pDashboardSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetA ]
                 pDashboardSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetB ]
                 pS3ArtifactsBucket: !Ref QSS3BucketName
+                pS3ArtifactsKeyPrefix: !Ref QSS3KeyPrefix
                 pNatEIP: !GetAtt [ ManagementVpcTemplate, Outputs.rEIPManagementNAT ]
                 pESDomainName: !Sub ${AWS::StackName}
                 pAppAMI: !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
@@ -452,6 +453,7 @@ Resources:
                 pDashboardInstanceType: !FindInMap [ RegionMap, !Ref 'AWS::Region', InstanceType ]
                 pDashboardAdminUser: !Ref pDashboardAdminUser
                 pDashboardAdminPassword: !Ref pDashboardAdminPassword
+                pAllowBastionSecurityGroup: !GetAtt [ ManagementVpcTemplate, Outputs.rSecurityGroupSSHFromMgmt ]
     ApplicationTemplate:
         Type: AWS::CloudFormation::Stack
         DependsOn: ProductionVpcTemplate

@@ -36,6 +36,9 @@ Parameters:
     pS3ArtifactsBucket:
         Type: String
         Description: S3 bucket where relevant artifacts are held.
+    pS3ArtifactsKeyPrefix:
+        Type: String
+        Default: ''
     pNatEIP:
         Type: String
         Description: >
@@ -87,6 +90,12 @@ Parameters:
         MaxLength: 41
         AllowedPattern: ^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&+=])(?=\S+$).{6,}$
         ConstraintDescription: Must contain at least 1 Upper/Lower alphanumeric characters, number and !@#$%& (Mininum length is 6)
+    pAllowBastionSecurityGroup:
+        Description: Enable SSH access via port 22
+        Type: String
+        Default: ''
+Conditions:
+    TrailingSlashNeeded: !Not [ !Equals [ !Ref pS3ArtifactsKeyPrefix, '' ] ]
 Resources:
     rDashboardInstanceRole:
         Type: AWS::IAM::Role
@@ -113,7 +122,9 @@ Resources:
                           - s3:List*
                           - s3:Head*
                         Resource:
-                          - !Sub arn:aws:s3:::${pS3ArtifactsBucket}/*
+                          - !Sub
+                              - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}*
+                              - { SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
                           - !Sub arn:aws:s3:::${pS3ArtifactsBucket}
               - PolicyName: ESAccess
                 PolicyDocument:
@@ -146,7 +157,7 @@ Resources:
                 SourceSecurityGroupId: !Ref rDashboardALBSecurityGroup
             Tags:
               - Key: Name
-                Value: webhost-sg
+                Value: central-logging-sg
     rDashboardLaunchConfiguration:
         DependsOn:
           - rDashboardSecurityGroup
@@ -231,16 +242,16 @@ Resources:
                     commands:
                         0-git_clone:
                             command: !Sub
-                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${Key} --no-check-certificate
-                              - { Key: !FindInMap [ Artifacts, ESTools, S3Key ] }
+                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
+                              - { Key: !FindInMap [ Artifacts, ESTools, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
                             cwd: /home/ec2-user
                         1-python_setup:
                             command: pip install es_tools-0.1.3.tar.gz
                             cwd: /home/ec2-user
                         2-kibana_index:
                             command: !Sub
-                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${Key} --no-check-certificate
-                              - { Key: !FindInMap [ Artifacts, Dashboard, S3Key ] }
+                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
+                              - { Key: !FindInMap [ Artifacts, Dashboard, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
                             cwd: /tmp/
                         3-import_dashboard:
                             command: sh /tmp/es.sh
@@ -251,6 +262,7 @@ Resources:
             UserData: !Base64
                 'Fn::Sub': |
                     #!/bin/bash -x
+
                     yum update -y
                     /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource rDashboardLaunchConfiguration --configsets dashboard_install --region ${AWS::Region}
                     # Create a new username/password for nginx
@@ -261,6 +273,7 @@ Resources:
                     service nginx restart
                     /opt/aws/bin/cfn-signal -e $?    --stack ${AWS::StackName} --resource rDashboardAutoscalingGroup --region ${AWS::Region}
             SecurityGroups:
+              - !Ref pAllowBastionSecurityGroup
               - !Ref rDashboardSecurityGroup
               - !Ref rESSecurityGroup
     rDashboardAutoscalingGroup:
@@ -281,7 +294,7 @@ Resources:
               - !Ref rDashboardALBTargetGroupHTTP
             Tags:
               - Key: Name
-                Value: webhost
+                Value: Central Logging Dashboard
                 PropagateAtLaunch: true
     rDashboardALBSecurityGroup:
         Type: AWS::EC2::SecurityGroup
@@ -310,7 +323,7 @@ Resources:
               - !Ref pDashboardSubnetId2
             Tags:
               - Key: Name
-                Value: webhost-alb
+                Value: central-logging-alb
     rDashboardALBTargetGroupHTTP:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
         Properties:
@@ -319,7 +332,7 @@ Resources:
             HealthCheckPath: /healthcheck/index.html
             Tags:
               - Key: Name
-                Value: webhost-alb-target-http
+                Value: central-logging-alb-target-http
             VpcId: !Ref pVpcId
     rDashboardALBTargetListenerHTTP:
         Type: AWS::ElasticLoadBalancingV2::Listener
@@ -346,18 +359,18 @@ Resources:
         Properties:
             DomainName: !Ref pESDomainName
             ElasticsearchVersion: 2.3
-            AccessPolicies:
-                Version: '2012-10-17'
-                Statement:
-                  - Sid: IP restriction
-                    Effect: Allow
-                    Principal:
-                        AWS: "*"
-                    Action: es:*
-                    Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*
-                    Condition:
-                        IpAddress:
-                            aws:SourceIp: !Ref pNatEIP
+            # AccessPolicies:
+            #     Version: '2012-10-17'
+            #     Statement:
+            #       - Sid: IP restriction
+            #         Effect: Allow
+            #         Principal:
+            #             AWS: "*"
+            #         Action: es:*
+            #         Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*
+            #         Condition:
+            #             IpAddress:
+            #                 aws:SourceIp: !Ref pNatEIP
             ElasticsearchClusterConfig:
                 InstanceCount: !Ref pESNodeCount
                 InstanceType: !Ref pESNodeSize
@@ -366,3 +379,142 @@ Resources:
                 Iops: 0
                 VolumeSize: !Ref pESNodeStorage
                 VolumeType: gp2
+    rLambdaESRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Sid: AllowLambda
+                    Effect: Allow
+                    Principal:
+                        Service: lambda.amazonaws.com
+                    Action: sts:AssumeRole
+            Path: /
+            Policies:
+              - PolicyName: rLambdaESRole
+                PolicyDocument:
+                    Version: 2012-10-17
+                    Statement:
+                      - Sid: AllowForLogs
+                        Effect: Allow
+                        Action:
+                          - logs:CreateLogGroup
+                          - logs:CreateLogStream
+                          - logs:PutLogEvents
+                        Resource: [ 'arn:aws:logs:*:*:*' ]
+                      - Sid: AllowForElasticsearch
+                        Effect: Allow
+                        Action:
+                          - es:ESHttpPost
+                          - es:ESHttpPut
+                          - es:DescribeElasticsearchDomain
+                        Resource: !GetAtt [ rElasticSearchDomain, DomainArn ]
+                      - Effect: Allow
+                        Action: lambda:GetFunction
+                        Resource: '*'
+                      - Effect: Allow
+                        Action:
+                          - iam:GetRolePolicy
+                          - iam:ListRolePolicies
+                        Resource: '*'
+
+    rPostProcInstanceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                          - ec2.amazonaws.com
+                    Action:
+                      - sts:AssumeRole
+            Path: /
+            Policies:
+              - PolicyName: PostProcPermissions
+                PolicyDocument:
+                    Version: 2012-10-17
+                    Statement:
+                      - Sid: UploadServerCertificate
+                        Effect: Allow
+                        Action:
+                          - iam:ListServerCertificates
+                          - iam:UploadServerCertificate
+                        Resource:
+                          - '*'
+                      - Sid: CreateListener
+                        Effect: Allow
+                        Action:
+                          - elasticloadbalancing:CreateListener
+                        Resource:
+                          - '*'
+                      - Sid: UpdateESPolicy
+                        Effect: Allow
+                        Action:
+                          - es:UpdateElasticsearchDomainConfig
+                        Resource:
+                          - '*'
+                      - Sid: SelfDestruct
+                        Effect: Allow
+                        Action:
+                          - ec2:TerminateInstances
+                        Resource:
+                          - '*'
+    rPostProcInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Path: /
+            Roles:
+              - !Ref rPostProcInstanceRole
+    rPostProcInstance:
+        Type: AWS::EC2::Instance
+        DependsOn:
+          - rDashboardLaunchConfiguration
+          - rDashboardAutoscalingGroup
+          - rElasticSearchDomain
+        Properties:
+            ImageId: !Ref pAppAMI
+            InstanceType: !Ref pDashboardInstanceType
+            IamInstanceProfile: !Ref rPostProcInstanceProfile
+            SubnetId: !Ref pAppSubnetId1
+            SecurityGroupIds:
+              - !Ref rDashboardSecurityGroup
+            UserData: !Base64
+                'Fn::Sub':
+                  - |
+                    #!/bin/bash -xe
+                    echo Configure the region, necessary especially for GovCloud
+                    aws configure set region ${AWS::Region}
+
+                    echo Determine whether a certificate needs to be generated
+                    cert_arn=$(aws iam list-server-certificates --query 'ServerCertificateMetadataList[?ServerCertificateName==`${ALBCertificate}`].Arn' --output text)
+                    if [[ $(echo "$cert_arn" | grep "${ALBCertificate}") != *"${ALBCertificate}"* ]]; then
+                    echo *** Beginnning ELB HTTPS configuration ***
+                    echo Generating private key...
+                    sudo openssl genrsa -out /tmp/my-private-key.pem 2048
+                    echo Creating CSR
+                    sudo openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj "/C=GB/ST=London/L=London/O=SIRS Jam/OU=Challenge 2/CN=challenge2.secjam.com"
+                    echo Self-signing certificate...
+                    sudo openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem
+                    sudo openssl rsa -in /tmp/my-private-key.pem -outform PEM
+                    echo Converting private key...
+                    sudo openssl x509 -inform PEM -in /tmp/my-certificate.pem
+                    echo Uploading key to AWS IAM and saving ARN to environment variable...
+                    cert_arn=$(aws iam upload-server-certificate --server-certificate-name ${ALBCertificate} --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)
+                    echo Sleeping so IAM can propogate the certificate...
+                    sleep 100
+                    echo Removing key files...
+                    sudo rm /tmp/*.pem
+                    fi
+                    echo Creating ELB HTTPS listener using the cert stored in the environment variable...
+                    aws elbv2 create-listener --load-balancer-arn ${rDashboardALB} --protocol HTTPS --port 443 --default-actions Type=forward,TargetGroupArn=${rDashboardALBTargetGroupHTTP} --certificates CertificateArn="$cert_arn" --ssl-policy ELBSecurityPolicy-2015-05
+
+                    echo Updating Elasticsearch AccessPolicy
+                    aws es update-elasticsearch-domain-config  --domain-name ${pESDomainName} --access-policies \
+                    '{"Version":"2012-10-17","Statement":[{"Sid":"IP restriction","Effect":"Allow","Principal":{"AWS":"*"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*","Condition":{"IpAddress":{"aws:SourceIp":"${pNatEIP}"}}},{"Sid":"EC2-Role restriction","Effect":"Allow","Principal":{"AWS":"${rLambdaESRole.Arn}"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*"}]}'
+                    echo Self-destruct!
+                    aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
+                    echo *** ELB HTTPS configuration complete ***
+                  - { ALBCertificate: !FindInMap ['Variables', 'ALBCertificate', 'Name'] }
