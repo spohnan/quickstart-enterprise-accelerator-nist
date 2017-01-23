@@ -727,7 +727,6 @@ Resources:
         configSets:
           wordpress_install:
             - install_cfn
-            - copy_landing_content
             - install_wordpress
         install_cfn:
           files:
@@ -756,12 +755,6 @@ Resources:
                 files:
                   - /etc/cfn/cfn-hup.conf
                   - /etc/cfn/hooks.d/cfn-auto-reloader.conf
-        copy_landing_content:
-          sources:
-            /var/www/html: !Sub ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/landing.zip
-          commands:
-            01_configure_permissions:
-              command: sudo chmod 755 -R /var/www/html
         install_wordpress:
           packages:
             yum:
@@ -846,6 +839,31 @@ Resources:
           echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
 
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingConfigApp --configsets wordpress_install --region ${AWS::Region}
+
+          ######################################################################
+          #     NOTE: UPDATE THESE VALUES ACCORDING TO THE COMPLIANCE BODY     #
+          ######################################################################
+          LANDING_PAGE="/var/www/html/landing.html"
+          COMPLIANCE_BODY_LABEL="NIST 800-53"
+          COMPLIANCE_SURVEY_LINK="nist"
+          COMPLIANCE_MATRIX_FILENAME="NIST-800-53-Security-Controls-Mapping.xlsx"
+          ######################################################################
+
+          # Download the landing page.
+          sudo wget ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/landing/landing.html -O $LANDING_PAGE
+
+          # Replace relative image links with links to the production S3 source.
+          sudo sed -i 's|images|${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/landing/images|g' $LANDING_PAGE
+
+          # Inject the landing page branding label.
+          sudo sed -i "s|{compliance-body}|$COMPLIANCE_BODY_LABEL|g" $LANDING_PAGE
+
+          # Inject the survey link parameter.
+          sudo sed -i "s|{compliance-body-survey-link}|$COMPLIANCE_SURVEY_LINK|g" $LANDING_PAGE
+
+          # Inject the security control matrix file location.
+          sudo sed -i "s|{compliance-body-matrix}|${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/$COMPLIANCE_MATRIX_FILENAME|g" $LANDING_PAGE
+
   rAutoScalingGroupApp:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn: rAutoScalingConfigApp
@@ -989,20 +1007,20 @@ Resources:
           if [[ $(echo "$cert_arn" | grep "non-production-testing-server-cert") != *"non-production-testing-server-cert"* ]]; then
           echo *** Beginnning ELB HTTPS configuration ***
           echo Generating private key...
-          sudo openssl genrsa -out /tmp/my-private-key.pem 2048
+          openssl genrsa -out /tmp/my-private-key.pem 2048
           echo Creating CSR
-          sudo openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj "/C=US/ST=Washington/L=Seattle/O=NonProductionTestCert/CN=NonProductionTestCert"
+          openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj "/C=US/ST=Washington/L=Seattle/O=NonProductionTestCert/CN=NonProductionTestCert"
           echo Self-signing certificate...
-          sudo openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem
-          sudo openssl rsa -in /tmp/my-private-key.pem -outform PEM
+          openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem
+          openssl rsa -in /tmp/my-private-key.pem -outform PEM
           echo Converting private key...
-          sudo openssl x509 -inform PEM -in /tmp/my-certificate.pem
+          openssl x509 -inform PEM -in /tmp/my-certificate.pem
           echo Uploading key to AWS IAM and saving ARN to environment variable...
           cert_arn=$(aws iam upload-server-certificate --server-certificate-name non-production-testing-server-cert --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)
           echo Sleeping so IAM can propogate the certificate...
           sleep 10
           echo Removing key files...
-          sudo rm /tmp/*.pem
+          rm /tmp/*.pem
           fi
           echo Creating ELB HTTPS listener using the cert stored in the environment variable...
           aws elb create-load-balancer-listeners --load-balancer-name ${rELBWeb} --listeners "Protocol=HTTPS,LoadBalancerPort=443,InstanceProtocol=HTTP,InstancePort=80,SSLCertificateId=$cert_arn" --region ${AWS::Region}
@@ -1010,10 +1028,7 @@ Resources:
           echo Send notification message...
           aws sns publish --topic-arn ${pSecurityAlarmTopic} \
             --subject "CloudFormation successfully launched ${AWS::StackName}" \
-            --message "What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. \
-                       Please note that the application server might be finishing up its initialization. \
-                       If the link doesn't respond right away, please try it again in few minutes. \
-                       This page resides on an application server in your new environment." \
+            --message "What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. Please note that the application server might be finishing up its initialization. If the link doesn't respond right away, please try it again in few minutes. This page resides on an application server in your new environment." \
             --region ${AWS::Region}
 
           echo Sleeping for 2 minutes to allow CloudFormation to catch up
