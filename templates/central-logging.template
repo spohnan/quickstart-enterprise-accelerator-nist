@@ -429,6 +429,15 @@ Resources:
             Action: lambda:InvokeFunction
             Principal: !Sub logs.${AWS::Region}.amazonaws.com
 
+    rAssetsBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            AccessControl: Private
+        DeletionPolicy: Delete
+
+    # Custom Resource to copy the contents of the source
+    # TODO
+
     rPostProcInstanceRole:
         Type: AWS::IAM::Role
         Properties:
