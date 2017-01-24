@@ -76,14 +76,15 @@ Parameters:
       logins
     Type: AWS::EC2::KeyPair::KeyName
   pSupportsConfig:
-    Description: 'Is AWS Config Rules already configured for this region? Use ''No''
+    Description: |
+      Is AWS Config Rules already configured for this region? Use 'false'
       if you are uncertain. AWS Config Rules is available in these regions: US East
       (Virginia), US West (Oregon), EU West (Ireland), and EU Central (Frankfurt).
-      See AWS Config Management Console or Deployment Guide for details.'
+      See AWS Config Management Console or Deployment Guide for details.
     AllowedValues:
-    - 'Yes'
-    - 'No'
-    Default: 'No'
+    - true
+    - false
+    Default: false
     Type: String
   pAvailabilityZoneA:
     Description: Availability Zone 1
@@ -299,7 +300,7 @@ Conditions:
   LoadConfigRulesTemplate:
     !Equals
     - !Ref pSupportsConfig
-    - 'Yes'
+    - true
   LaunchAsDedicatedInstance:
     !Equals
     - !Ref pVPCTenancy
