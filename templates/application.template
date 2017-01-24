@@ -811,6 +811,8 @@ Resources:
 
           yum update -y
 
+          EC2_INSTANCE_ID=$(curl -s http://instance-data/latest/meta-data/instance-id)
+
           ######################################################################
           # Volume /dev/sdh (which will get created as /dev/xvdh on Amazon Linux)
 
