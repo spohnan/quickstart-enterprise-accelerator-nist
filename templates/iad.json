@@ -1,54 +1,54 @@
 [
-    {
-        "ParameterKey": "pDBPassword",
-        "ParameterValue": "6uWaEWpIMCYAK2UK"
-    },
-    {
-        "ParameterKey": "pNotifyEmail",
-        "ParameterValue": "bjwagner@amazon.co.uk"
-    },
-    {
-        "ParameterKey": "pEC2KeyPairBastion",
-        "ParameterValue": "iad"
-    },
-    {
-        "ParameterKey": "pEC2KeyPair",
-        "ParameterValue": "iad"
-    },
-    {
-        "ParameterKey": "pSupportsConfig",
-        "ParameterValue": "true"
-    },
-    {
-        "ParameterKey": "pAvailabilityZoneA",
-        "ParameterValue": "us-east-1a"
-    },
-    {
-        "ParameterKey": "pAvailabilityZoneB",
-        "ParameterValue": "us-east-1c"
-    },
-    {
-        "ParameterKey": "pVPCTenancy",
-        "ParameterValue": "default"
-    },
-    {
-      "ParameterKey": "QSS3BucketName",
-      "ParameterValue": "bjwagner.iad"
-    },
-    {
-      "ParameterKey": "QSS3KeyPrefix",
-      "ParameterValue": "nist"
-    },
-    {
-        "ParameterKey": "pLaunchCentralLogging",
-        "ParameterValue": "false"
-    },
-    {
-        "ParameterKey": "pDashboardAdminUser",
-        "ParameterValue": "admin"
-    },
-    {
-        "ParameterKey": "pDashboardAdminPassword",
-        "ParameterValue": "zPg!H4BeY7q@WD32U8NK"
-    }
+  {
+    "ParameterKey": "pDBPassword",
+    "ParameterValue": "6uWaEWpIMCYAK2UK"
+  },
+  {
+    "ParameterKey": "pNotifyEmail",
+    "ParameterValue": "bjwagner@amazon.co.uk"
+  },
+  {
+    "ParameterKey": "pEC2KeyPairBastion",
+    "ParameterValue": "iad"
+  },
+  {
+    "ParameterKey": "pEC2KeyPair",
+    "ParameterValue": "iad"
+  },
+  {
+    "ParameterKey": "pSupportsConfig",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "pAvailabilityZoneA",
+    "ParameterValue": "us-east-1a"
+  },
+  {
+    "ParameterKey": "pAvailabilityZoneB",
+    "ParameterValue": "us-east-1c"
+  },
+  {
+    "ParameterKey": "pVPCTenancy",
+    "ParameterValue": "default"
+  },
+  {
+    "ParameterKey": "QSS3BucketName",
+    "ParameterValue": "bjwagner.iad"
+  },
+  {
+    "ParameterKey": "QSS3KeyPrefix",
+    "ParameterValue": "nist"
+  },
+  {
+    "ParameterKey": "pLaunchCentralLogging",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "pDashboardAdminUser",
+    "ParameterValue": "admin"
+  },
+  {
+    "ParameterKey": "pDashboardAdminPassword",
+    "ParameterValue": "zPg!H4BeY7q@WD32U8NK"
+  }
 ]

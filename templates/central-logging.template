@@ -1,538 +1,673 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Centralized CloudTrail and VPC FlowLogs analysis system built on Elasticsearch and Kibana.
 Mappings:
-    LogFormats:
-        AmazonVPCFlowLogs:
-            Value: '[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]'
-        AWSLambda:
-            Value: '[timestamp=*Z, request_id="*-*", event]'
-        AWSCloudTrail:
-            Value: ''
-        Custom:
-            Value: ''
-    Artifacts:
-        Dashboard:
-            S3Key: artifacts/central-logging/dashboard.json
-        ESTools:
-            S3Key: artifacts/central-logging/es_tools-0.1.3.tar.gz
-        Parser:
-            S3Key: artifacts/central-logging/eoh-parser.zip
-    Variables:
-        ALBCertificate:
-            Name: central-logging-test-cert
+  LogFormats:
+    AmazonVPCFlowLogs:
+      Value: '[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log_status]'
+    AWSLambda:
+      Value: '[timestamp=*Z, request_id="*-*", event]'
+    AWSCloudTrail:
+      Value: ''
+    Custom:
+      Value: ''
+  Artifacts:
+    Dashboard:
+      S3Key: artifacts/central-logging/dashboard.json
+    ESTools:
+      S3Key: artifacts/central-logging/es_tools-0.1.3.tar.gz
+    Parser:
+      S3Key: artifacts/central-logging/eoh-parser.zip
+  Variables:
+    ALBCertificate:
+      Name: central-logging-test-cert
 Parameters:
-    pAppSubnetId1:
-        Type: AWS::EC2::Subnet::Id
-        Description: Subnet where ElasticSearch will live.
-    pAppSubnetId2:
-        Type: AWS::EC2::Subnet::Id
-        Description: Subnet where ElasticSearch will live.
-    pDashboardSubnetId1:
-        Type: AWS::EC2::Subnet::Id
-        Description: Subnet where the Dashboard will live.
-    pDashboardSubnetId2:
-        Type: AWS::EC2::Subnet::Id
-        Description: Subnet where the Dashboard will live.
-    pS3ArtifactsBucket:
-        Type: String
-        Description: S3 bucket where relevant artifacts are held.
-    pS3ArtifactsKeyPrefix:
-        Type: String
-        Default: ''
-    pNatEIP:
-        Type: String
-        Description: >
-            IP address of the NAT which is sending outbound connections. Because ElasticSearch does not sit inside of a VPC,
-            connections come in through a gateway device. An IP is required to scope access.
-    pESDomainName:
-        Type: String
-        Description: Name for the ElasticSearch domain.
-    pAppAMI:
-        Type: AWS::EC2::Image::Id
-        Description: AMI used for Dashboard instance. Needs to be Amazon Linux OS.
-    pVpcId:
-        Type: String
-        Description: VPC where the entire solution will live.
-    pESNodeCount:
-        Type: Number
-        Description: Number of nodes for the ElasticSearch domain. 2 is recommended for production use.
-        Default: 2
-    pESNodeSize:
-        Type: String
-        Description: Instance size for ElasticSearch nodes.
-        AllowedValues: [ t2.micro.elasticsearch, t2.small.elasticsearch, t2.medium.elasticsearch, m3.medium.elasticsearch, m3.large.elasticsearch, m3.xlarge.elasticsearch, m3.2xlarge.elasticsearch, r3.large.elasticsearch, r3.xlarge.elasticsearch, r3.2xlarge.elasticsearch, r3.4xlarge.elasticsearch, r3.8xlarge.elasticsearch, i2.xlarge.elasticsearch, i2.2xlarge.elasticsearch ]
-    pESNodeStorage:
-        Type: Number
-        Description: Storage size in GBi. Default is 20GBi each node.
-        Default: 20
-    pDashboardInstanceType:
-        Type: String
-        Description: The size of the instance that will operate the Kibana dashboard
-        Default: t2.small
-        AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium, t2.large, m1.small,
-          m1.medium, m1.large, m1.xlarge, m2.xlarge, m2.2xlarge, m2.4xlarge, m3.medium,
-          m3.large, m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge,
-          m4.10xlarge, c1.medium, c1.xlarge, c3.large, c3.xlarge, c3.2xlarge, c3.4xlarge,
-          c3.8xlarge, c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, g2.2xlarge,
-          g2.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge, r3.8xlarge, i2.xlarge,
-          i2.2xlarge, i2.4xlarge, i2.8xlarge, d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge,
-          hi1.4xlarge, hs1.8xlarge, cr1.8xlarge, cc2.8xlarge, cg1.4xlarge]
-    pDashboardAdminUser:
-        Type: String
-        Description: Dashboard admin user name.
-    pDashboardAdminPassword:
-        Type: String
-        NoEcho: True
-        Description: >
-          Dashboard admin password.
-          Must contain at least 6 characters with 1 Upper, 1 Lower, 1 number and 1 Special (!@#$%&).
-        MinLength: 6
-        MaxLength: 41
-        AllowedPattern: ^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&+=])(?=\S+$).{6,}$
-        ConstraintDescription: Must contain at least 1 Upper/Lower alphanumeric characters, number and !@#$%& (Mininum length is 6)
-    pAllowBastionSecurityGroup:
-        Description: Enable SSH access via port 22
-        Type: String
-        Default: ''
+  pAppSubnetId1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where ElasticSearch will live.
+  pAppSubnetId2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where ElasticSearch will live.
+  pDashboardSubnetId1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where the Dashboard will live.
+  pDashboardSubnetId2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet where the Dashboard will live.
+  pS3ArtifactsBucket:
+    Type: String
+    Description: S3 bucket where relevant artifacts are held.
+  pS3ArtifactsKeyPrefix:
+    Type: String
+    Default: ''
+  pNatEIP:
+    Type: String
+    Description: >
+      IP address of the NAT which is sending outbound connections. Because ElasticSearch does not sit inside of a VPC,
+      connections come in through a gateway device. An IP is required to scope access.
+  pESDomainName:
+    Type: String
+    Description: Name for the ElasticSearch domain.
+  pAppAMI:
+    Type: AWS::EC2::Image::Id
+    Description: AMI used for Dashboard instance. Needs to be Amazon Linux OS.
+  pVpcId:
+    Type: String
+    Description: VPC where the entire solution will live.
+  pESNodeCount:
+    Type: Number
+    Description: Number of nodes for the ElasticSearch domain. 2 is recommended for production use.
+    Default: 2
+  pESNodeSize:
+    Type: String
+    Description: Instance size for ElasticSearch nodes.
+    AllowedValues: [ t2.micro.elasticsearch, t2.small.elasticsearch, t2.medium.elasticsearch, m3.medium.elasticsearch, m3.large.elasticsearch, m3.xlarge.elasticsearch, m3.2xlarge.elasticsearch, r3.large.elasticsearch, r3.xlarge.elasticsearch, r3.2xlarge.elasticsearch, r3.4xlarge.elasticsearch, r3.8xlarge.elasticsearch, i2.xlarge.elasticsearch, i2.2xlarge.elasticsearch ]
+  pESNodeStorage:
+    Type: Number
+    Description: Storage size in GBi. Default is 20GBi each node.
+    Default: 20
+  pDashboardInstanceType:
+    Type: String
+    Description: The size of the instance that will operate the Kibana dashboard
+    Default: t2.small
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium, t2.large, m1.small,
+      m1.medium, m1.large, m1.xlarge, m2.xlarge, m2.2xlarge, m2.4xlarge, m3.medium,
+      m3.large, m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge,
+      m4.10xlarge, c1.medium, c1.xlarge, c3.large, c3.xlarge, c3.2xlarge, c3.4xlarge,
+      c3.8xlarge, c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, g2.2xlarge,
+      g2.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge, r3.8xlarge, i2.xlarge,
+      i2.2xlarge, i2.4xlarge, i2.8xlarge, d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge,
+      hi1.4xlarge, hs1.8xlarge, cr1.8xlarge, cc2.8xlarge, cg1.4xlarge]
+  pDashboardAdminUser:
+    Type: String
+    Description: Dashboard admin user name.
+  pDashboardAdminPassword:
+    Type: String
+    NoEcho: True
+    Description: >
+      Dashboard admin password.
+      Must contain at least 6 characters with 1 Upper, 1 Lower, 1 number and 1 Special (!@#$%&).
+    MinLength: 6
+    MaxLength: 41
+    AllowedPattern: ^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&+=])(?=\S+$).{6,}$
+    ConstraintDescription: Must contain at least 1 Upper/Lower alphanumeric characters, number and !@#$%& (Mininum length is 6)
+  pAllowBastionSecurityGroup:
+    Description: Enable SSH access via port 22
+    Type: String
+    Default: ''
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase letters, uppercase letters, periods (.), and hyphens (-). It cannot start or end with a hyphen (-).
+    Default: quickstart-reference
+    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-]+(/[0-9a-zA-Z-]+)*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.
+    Default: enterprise-accelerator/nist/latest
+    Description: S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.
+    Type: String
 Conditions:
-    TrailingSlashNeeded: !Not [ !Equals [ !Ref pS3ArtifactsKeyPrefix, '' ] ]
+  TrailingSlashNeeded: !Not [ !Equals [ !Ref pS3ArtifactsKeyPrefix, '' ] ]
 Resources:
-    rDashboardInstanceRole:
-        Type: AWS::IAM::Role
-        Properties:
-            AssumeRolePolicyDocument:
-                Version: 2012-10-17
-                Statement:
-                  - Effect: Allow
-                    Principal:
-                        Service:
-                          - ec2.amazonaws.com
-                    Action:
-                      - sts:AssumeRole
-            Path: /
-            Policies:
-              - PolicyName: S3Access
-                PolicyDocument:
-                    Version: 2012-10-17
-                    Statement:
-                      - Sid: GetServerCertificate
-                        Effect: Allow
-                        Action:
-                          - s3:Get*
-                          - s3:List*
-                          - s3:Head*
-                        Resource:
-                          - !Sub
-                              - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}*
-                              - { SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
-                          - !Sub arn:aws:s3:::${pS3ArtifactsBucket}
-              - PolicyName: ESAccess
-                PolicyDocument:
-                    Version: 2012-10-17
-                    Statement:
-                      - Sid: AllowForElasticsearch
-                        Effect: Allow
-                        Action:
-                          - es:*
-                        Resource: !GetAtt [ rElasticSearchDomain, DomainArn ]
-    rDashboardInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-            Path: /
-            Roles:
-              - !Ref rDashboardInstanceRole
-    rDashboardSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            VpcId: !Ref pVpcId
-            GroupDescription: Allows internet traffic inbound for a web host
-            SecurityGroupIngress:
-              - IpProtocol: tcp
-                FromPort: 80
-                ToPort: 80
-                SourceSecurityGroupId: !Ref rDashboardALBSecurityGroup
-              - IpProtocol: tcp
-                FromPort: 443
-                ToPort: 443
-                SourceSecurityGroupId: !Ref rDashboardALBSecurityGroup
-            Tags:
-              - Key: Name
-                Value: central-logging-sg
-    rDashboardLaunchConfiguration:
-        DependsOn:
-          - rDashboardSecurityGroup
-        Type: AWS::AutoScaling::LaunchConfiguration
-        Metadata:
-            AWS::CloudFormation::Init:
-                configSets:
-                    dashboard_install: [ install_cfn, install_nginx, install_estool ]
-                install_cfn:
-                    files:
-                        '/etc/cfn/cfn-hup.conf':
-                            content: !Sub |
-                                [main]
-                                stack=${AWS::StackId}
-                                region=${AWS::Region}
-                            mode: '000400'
-                            owner: root
-                            group: root
-                        '/etc/cfn/hooks.d/cfn-auto-reloader.conf':
-                            content: !Sub |
-                                [cfn-auto-reloader-hook]
-                                triggers=post.update
-                                path=Resources.WebServer.Metadata.AWS::CloudFormation::Init
-                                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rDashboardLaunchConfiguration --configsets dashboard_install --region ${AWS::Region}
-                            mode: '000400'
-                            owner: root
-                            group: root
-                    services:
-                        sysvinit:
-                            cfn-hup:
-                                enabled: true
-                                ensureRunning: true
-                                files:
-                                  - '/etc/cfn/cfn-hup.conf'
-                                  - '/etc/cfn/hooks.d/cfn-auto-reloader.conf'
-                install_nginx:
-                    packages:
-                        yum:
-                            nginx: []
-                            git: []
-                    files:
-                        '/tmp/es.sh':
-                            content: !Sub |
-                                #!/bin/bash -v
-                                PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/aws/bin:/home/ec2-user/.local/bin:/home/ec2-user/bin
-                                curl -XPUT ${rElasticSearchDomain.DomainEndpoint}/_template/template1 -d '{"template":"cwl*","mappings":{"_default_":{"dynamic_templates":[{"strings":{"match_mapping_type":"string","mapping":{"type":"string","index":"not_analyzed"}}}]}}}'
-                                es-import -r ${AWS::Region} -e ${rElasticSearchDomain.DomainEndpoint} -p 80 -f /tmp/dashboard.json
-                                nameserver=$(cat /etc/resolv.conf | grep nameserver | cut -d ' ' -f 2)
-                                sed -i 's/resolver-ip/'$nameserver'/g' /etc/nginx/default.d/default.conf
-                            mode: '000700'
-                            owner: root
-                            group: root
-                        '/etc/nginx/default.d/default.conf':
-                            content: !Sub |
-                                location / {
-                                    resolver resolver-ip;
-                                    set $es ${rElasticSearchDomain.DomainEndpoint};
-                                    auth_basic 'Restricted';
-                                    auth_basic_user_file /etc/nginx/conf.d/kibana.htpasswd;
-                                    proxy_pass_request_headers off;
-                                    proxy_set_header Host $http_host;
-                                    proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
-                                    proxy_pass http://$es;
-                                }
-                                location /healthcheck/ {
-                                    index index.html
-                                    auth_basic "off";
-                                }
-                            mode: '000644'
-                            owner: root
-                            group: root
-                        '/usr/share/nginx/html/healthcheck/index.html':
-                            content: meow
-                            mode: '000755'
-                            owner: root
-                            group: root
-                    services:
-                        sysvinit:
-                            nginx:
-                                enabled: true
-                install_estool:
-                    commands:
-                        0-git_clone:
-                            command: !Sub
-                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
-                              - { Key: !FindInMap [ Artifacts, ESTools, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
-                            cwd: /home/ec2-user
-                        1-python_setup:
-                            command: pip install es_tools-0.1.3.tar.gz
-                            cwd: /home/ec2-user
-                        2-kibana_index:
-                            command: !Sub
-                              - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
-                              - { Key: !FindInMap [ Artifacts, Dashboard, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
-                            cwd: /tmp/
-                        3-import_dashboard:
-                            command: sh /tmp/es.sh
-        Properties:
-            ImageId: !Ref pAppAMI
-            InstanceType: !Ref pDashboardInstanceType
-            IamInstanceProfile: !Ref rDashboardInstanceProfile
-            UserData: !Base64
-                'Fn::Sub': |
-                    #!/bin/bash -x
+  rDashboardInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: GetServerCertificate
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                  - s3:List*
+                  - s3:Head*
+                Resource:
+                  - !Sub
+                    - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}*
+                    - { SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
+                  - !Sub arn:aws:s3:::${pS3ArtifactsBucket}
+        - PolicyName: ESAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowForElasticsearch
+                Effect: Allow
+                Action:
+                  - es:*
+                Resource: !GetAtt [ rElasticSearchDomain, DomainArn ]
+  rDashboardInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref rDashboardInstanceRole
+  rDashboardSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref pVpcId
+      GroupDescription: Allows internet traffic inbound for a web host
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref rDashboardALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref rDashboardALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: central-logging-sg
+  rDashboardLaunchConfiguration:
+    DependsOn:
+      - rDashboardSecurityGroup
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          dashboard_install: [ install_cfn, install_nginx, install_estool ]
+        install_cfn:
+          files:
+            '/etc/cfn/cfn-hup.conf':
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+            '/etc/cfn/hooks.d/cfn-auto-reloader.conf':
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WebServer.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rDashboardLaunchConfiguration --configsets dashboard_install --region ${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - '/etc/cfn/cfn-hup.conf'
+                  - '/etc/cfn/hooks.d/cfn-auto-reloader.conf'
+        install_nginx:
+          packages:
+            yum:
+              nginx: []
+              git: []
+          files:
+            '/tmp/es.sh':
+              content: !Sub |
+                #!/bin/bash -v
+                PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/aws/bin:/home/ec2-user/.local/bin:/home/ec2-user/bin
+                curl -XPUT ${rElasticSearchDomain.DomainEndpoint}/_template/template1 -d '{"template":"cwl*","mappings":{"_default_":{"dynamic_templates":[{"strings":{"match_mapping_type":"string","mapping":{"type":"string","index":"not_analyzed"}}}]}}}'
+                es-import -r ${AWS::Region} -e ${rElasticSearchDomain.DomainEndpoint} -p 80 -f /tmp/dashboard.json
+                nameserver=$(cat /etc/resolv.conf | grep nameserver | cut -d ' ' -f 2)
+                sed -i 's/resolver-ip/'$nameserver'/g' /etc/nginx/default.d/default.conf
+              mode: '000700'
+              owner: root
+              group: root
+            '/etc/nginx/default.d/default.conf':
+              content: !Sub |
+                location / {
+                  resolver resolver-ip;
+                  set $es ${rElasticSearchDomain.DomainEndpoint};
+                  auth_basic 'Restricted';
+                  auth_basic_user_file /etc/nginx/conf.d/kibana.htpasswd;
+                  proxy_pass_request_headers off;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_pass http://$es;
+                }
+                location /healthcheck/ {
+                  index index.html
+                  auth_basic "off";
+                }
+              mode: '000644'
+              owner: root
+              group: root
+            '/usr/share/nginx/html/healthcheck/index.html':
+              content: meow
+              mode: '000755'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              nginx:
+                enabled: true
+        install_estool:
+          commands:
+            0-git_clone:
+              command: !Sub
+                - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
+                - { Key: !FindInMap [ Artifacts, ESTools, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
+              cwd: /home/ec2-user
+            1-python_setup:
+              command: pip install es_tools-0.1.3.tar.gz
+              cwd: /home/ec2-user
+            2-kibana_index:
+              command: !Sub
+                - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
+                - { Key: !FindInMap [ Artifacts, Dashboard, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
+              cwd: /tmp/
+            3-import_dashboard:
+              command: sh /tmp/es.sh
+    Properties:
+      ImageId: !Ref pAppAMI
+      InstanceType: !Ref pDashboardInstanceType
+      IamInstanceProfile: !Ref rDashboardInstanceProfile
+      UserData: !Base64
+        'Fn::Sub': |
+          #!/bin/bash -x
 
-                    yum update -y
-                    /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource rDashboardLaunchConfiguration --configsets dashboard_install --region ${AWS::Region}
-                    # Create a new username/password for nginx
-                    printf ${pDashboardAdminUser}:`openssl passwd -apr1 ${pDashboardAdminPassword}` >> /etc/nginx/conf.d/kibana.htpasswd
-                    # Remove the default location from nginx config
-                    sed -ri '/location \//,/.*\}/d' /etc/nginx/nginx.conf
-                    # Restart nginx service
-                    service nginx restart
-                    /opt/aws/bin/cfn-signal -e $?    --stack ${AWS::StackName} --resource rDashboardAutoscalingGroup --region ${AWS::Region}
-            SecurityGroups:
-              - !Ref pAllowBastionSecurityGroup
-              - !Ref rDashboardSecurityGroup
-              - !Ref rESSecurityGroup
-    rDashboardAutoscalingGroup:
-        Type: AWS::AutoScaling::AutoScalingGroup
-        CreationPolicy:
-            ResourceSignal:
-                Count: 1
-                Timeout: PT15M
-        Properties:
-            VPCZoneIdentifier:
-              - !Ref pAppSubnetId1
-              - !Ref pAppSubnetId2
-            DesiredCapacity: 2
-            LaunchConfigurationName: !Ref rDashboardLaunchConfiguration
-            MaxSize: 4
-            MinSize: 2
-            TargetGroupARNs:
-              - !Ref rDashboardALBTargetGroupHTTP
-            Tags:
-              - Key: Name
-                Value: Central Logging Dashboard
-                PropagateAtLaunch: true
-    rDashboardALBSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: For receiving traffic from the public internet.
-            SecurityGroupIngress:
-              - IpProtocol: tcp
-                FromPort: 80
-                ToPort: 80
-                CidrIp: 0.0.0.0/0
-              - IpProtocol: tcp
-                FromPort: 443
-                ToPort: 443
-                CidrIp: 0.0.0.0/0
-            VpcId: !Ref pVpcId
-            Tags:
-              - Key: Name
-                Value: loadbalancer-sg
-    rDashboardALB:
-        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-        Properties:
-            Scheme: internet-facing
-            SecurityGroups: [ !Ref 'rDashboardALBSecurityGroup' ]
-            Subnets:
-              - !Ref pDashboardSubnetId1
-              - !Ref pDashboardSubnetId2
-            Tags:
-              - Key: Name
-                Value: central-logging-alb
-    rDashboardALBTargetGroupHTTP:
-        Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        Properties:
-            Port: 80
-            Protocol: HTTP
-            HealthCheckPath: /healthcheck/index.html
-            Tags:
-              - Key: Name
-                Value: central-logging-alb-target-http
-            VpcId: !Ref pVpcId
-    rDashboardALBTargetListenerHTTP:
-        Type: AWS::ElasticLoadBalancingV2::Listener
-        Properties:
-            DefaultActions:
-              - TargetGroupArn: !Ref rDashboardALBTargetGroupHTTP
-                Type: forward
-            LoadBalancerArn: !Ref rDashboardALB
-            Port: 80
-            Protocol: HTTP
+          yum update -y
+          /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource rDashboardLaunchConfiguration --configsets dashboard_install --region ${AWS::Region}
+          # Create a new username/password for nginx
+          printf ${pDashboardAdminUser}:`openssl passwd -apr1 ${pDashboardAdminPassword}` >> /etc/nginx/conf.d/kibana.htpasswd
+          # Remove the default location from nginx config
+          sed -ri '/location \//,/.*\}/d' /etc/nginx/nginx.conf
+          # Restart nginx service
+          service nginx restart
+          /opt/aws/bin/cfn-signal -e $?  --stack ${AWS::StackName} --resource rDashboardAutoscalingGroup --region ${AWS::Region}
+      SecurityGroups:
+        - !Ref pAllowBastionSecurityGroup
+        - !Ref rDashboardSecurityGroup
+        - !Ref rESSecurityGroup
+  rDashboardAutoscalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT15M
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref pAppSubnetId1
+        - !Ref pAppSubnetId2
+      DesiredCapacity: 2
+      LaunchConfigurationName: !Ref rDashboardLaunchConfiguration
+      MaxSize: 4
+      MinSize: 2
+      TargetGroupARNs:
+        - !Ref rDashboardALBTargetGroupHTTP
+      Tags:
+        - Key: Name
+          Value: Central Logging Dashboard
+          PropagateAtLaunch: true
+  rDashboardALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: For receiving traffic from the public internet.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref pVpcId
+      Tags:
+        - Key: Name
+          Value: loadbalancer-sg
+  rDashboardALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups: [ !Ref 'rDashboardALBSecurityGroup' ]
+      Subnets:
+        - !Ref pDashboardSubnetId1
+        - !Ref pDashboardSubnetId2
+      Tags:
+        - Key: Name
+          Value: central-logging-alb
+  rDashboardALBTargetGroupHTTP:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /healthcheck/index.html
+      Tags:
+        - Key: Name
+          Value: central-logging-alb-target-http
+      VpcId: !Ref pVpcId
+  rDashboardALBTargetListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref rDashboardALBTargetGroupHTTP
+          Type: forward
+      LoadBalancerArn: !Ref rDashboardALB
+      Port: 80
+      Protocol: HTTP
 
-    rESSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            VpcId: !Ref pVpcId
-            GroupDescription: Allows for outbound Elasticsearch communication
-            SecurityGroupEgress:
-              - IpProtocol: tcp
-                FromPort: 9200
-                ToPort: 9200
-                CidrIp: 0.0.0.0/0
-    rElasticSearchDomain:
-        Type: AWS::Elasticsearch::Domain
-        Properties:
-            DomainName: !Ref pESDomainName
-            ElasticsearchVersion: 2.3
-            ElasticsearchClusterConfig:
-                InstanceCount: !Ref pESNodeCount
-                InstanceType: !Ref pESNodeSize
-            EBSOptions:
-                EBSEnabled: true
-                Iops: 0
-                VolumeSize: !Ref pESNodeStorage
-                VolumeType: gp2
-    rLambdaESRole:
-        Type: AWS::IAM::Role
-        Properties:
-            AssumeRolePolicyDocument:
-                Version: 2012-10-17
-                Statement:
-                  - Sid: AllowLambda
-                    Effect: Allow
-                    Principal:
-                        Service: lambda.amazonaws.com
-                    Action: sts:AssumeRole
-            Path: /
-            Policies:
-              - PolicyName: rLambdaESRole
-                PolicyDocument:
-                    Version: 2012-10-17
-                    Statement:
-                      - Sid: AllowForLogs
-                        Effect: Allow
-                        Action:
-                          - logs:CreateLogGroup
-                          - logs:CreateLogStream
-                          - logs:PutLogEvents
-                        Resource: [ 'arn:aws:logs:*:*:*' ]
-                      - Sid: AllowForElasticsearch
-                        Effect: Allow
-                        Action:
-                          - es:ESHttpPost
-                          - es:ESHttpPut
-                          - es:DescribeElasticsearchDomain
-                        Resource: !GetAtt [ rElasticSearchDomain, DomainArn ]
-                      - Effect: Allow
-                        Action: lambda:GetFunction
-                        Resource: '*'
-                      - Effect: Allow
-                        Action:
-                          - iam:GetRolePolicy
-                          - iam:ListRolePolicies
-                        Resource: '*'
-    # rLambdaFnCloudWatchLogsToElasticsearch:
-    #     DependsOn:
-    #         - rElasticSearchDomain
-    #     Type: AWS::Lambda::Function
-    #     Properties:
-    #         Code:
-    #             S3Bucket: !Ref pS3ArtifactsBucket
-    #             S3Key: !FindInMap [Artifacts, Parser, S3Key]
-    #         Description: Submits FlowLog data stream to Elasticsearch
-    #         Handler: eoh-parser.lambda_handler
-    #         MemorySize: 128
-    #         Role: !GetAtt [ rLambdaESRole, Arn ]
-    #         Runtime: python2.7
-    #         Timeout: 180
-    # rLambdaInvokePermission:
-    #     Type: AWS::Lambda::Permission
-    #     DependsOn:
-    #         - rLambdaFnCloudWatchLogsToElasticsearch
-    #     Properties:
-    #         FunctionName: !GetAtt [ rLambdaFnCloudWatchLogsToElasticsearch, Arn ]
-    #         Action: lambda:InvokeFunction
-    #         Principal: !Sub logs.${AWS::Region}.amazonaws.com
+  rESSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref pVpcId
+      GroupDescription: Allows for outbound Elasticsearch communication
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9200
+          CidrIp: 0.0.0.0/0
+  rElasticSearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      DomainName: !Ref pESDomainName
+      ElasticsearchVersion: 2.3
+      ElasticsearchClusterConfig:
+        InstanceCount: !Ref pESNodeCount
+        InstanceType: !Ref pESNodeSize
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: !Ref pESNodeStorage
+        VolumeType: gp2
 
-    rS3LocalArtifactsBucket:
-        Type: AWS::S3::Bucket
-        Properties:
-            AccessControl: Private
-        DeletionPolicy: Delete
-    # Custom Resource to copy the contents of the source
-    # TODO
+  rS3LocalArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+    DeletionPolicy: Delete
+  rCopyArtifactsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowLambda
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: CopyArtifacts
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowS3Get
+                Effect: Allow
+                Action:
+                  - s3:CopyObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub
+                    - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
+                    - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
+                      Key: !FindInMap [ Artifacts, Parser, S3Key ]
+              - Sid: AllowS3Put
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${rS3LocalArtifactsBucket}/*
+              - Sid: AllowForLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: [ 'arn:aws:logs:*:*:*' ]
+  rCopyArtifactsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Role: !GetAtt rCopyArtifactsRole.Arn
+      Runtime: python2.7
+      Timeout: 120
+      Code:
+          ZipFile: !Sub |
+            import base64
+            import uuid
+            import httplib
+            import urlparse
+            import json
+            import boto3
 
-    rPostProcInstanceRole:
-        Type: AWS::IAM::Role
-        Properties:
-            AssumeRolePolicyDocument:
-                Version: 2012-10-17
-                Statement:
-                  - Effect: Allow
-                    Principal:
-                        Service:
-                          - ec2.amazonaws.com
-                    Action:
-                      - sts:AssumeRole
-            Path: /
-            Policies:
-              - PolicyName: PostProcPermissions
-                PolicyDocument:
-                    Version: 2012-10-17
-                    Statement:
-                      - Sid: UploadServerCertificate
-                        Effect: Allow
-                        Action:
-                          - iam:ListServerCertificates
-                          - iam:UploadServerCertificate
-                        Resource:
-                          - '*'
-                      - Sid: CreateListener
-                        Effect: Allow
-                        Action:
-                          - elasticloadbalancing:CreateListener
-                        Resource:
-                          - '*'
-                      - Sid: UpdateESPolicy
-                        Effect: Allow
-                        Action:
-                          - es:UpdateElasticsearchDomainConfig
-                        Resource:
-                          - '*'
-                      - Sid: SelfDestruct
-                        Effect: Allow
-                        Action:
-                          - ec2:TerminateInstances
-                        Resource:
-                          - '*'
-    rPostProcInstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-            Path: /
-            Roles:
-              - !Ref rPostProcInstanceRole
-    rPostProcInstance:
-        Type: AWS::EC2::Instance
-        DependsOn:
-          - rDashboardLaunchConfiguration
-          - rDashboardAutoscalingGroup
-          - rElasticSearchDomain
-        Properties:
-            ImageId: !Ref pAppAMI
-            InstanceType: !Ref pDashboardInstanceType
-            IamInstanceProfile: !Ref rPostProcInstanceProfile
-            SubnetId: !Ref pAppSubnetId1
-            SecurityGroupIds:
-              - !Ref rDashboardSecurityGroup
-            UserData: !Base64
-                'Fn::Sub':
-                  - |
-                    #!/bin/bash -xe
-                    echo Configure the region, necessary especially for GovCloud
-                    aws configure set region ${AWS::Region}
+            def send_response(request, response, status=None, reason=None):
+                if status is not None:
+                    response['Status'] = status
 
-                    echo Determine whether a certificate needs to be generated
-                    cert_arn=$(aws iam list-server-certificates --query 'ServerCertificateMetadataList[?ServerCertificateName==`${ALBCertificate}`].Arn' --output text)
-                    if [[ $(echo "$cert_arn" | grep "${ALBCertificate}") != *"${ALBCertificate}"* ]]; then
-                    echo *** Beginnning ELB HTTPS configuration ***
-                    echo Generating private key...
-                    sudo openssl genrsa -out /tmp/my-private-key.pem 2048
-                    echo Creating CSR
-                    sudo openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj "/C=GB/ST=London/L=London/O=SIRS Jam/OU=Challenge 2/CN=challenge2.secjam.com"
-                    echo Self-signing certificate...
-                    sudo openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem
-                    sudo openssl rsa -in /tmp/my-private-key.pem -outform PEM
-                    echo Converting private key...
-                    sudo openssl x509 -inform PEM -in /tmp/my-certificate.pem
-                    echo Uploading key to AWS IAM and saving ARN to environment variable...
-                    cert_arn=$(aws iam upload-server-certificate --server-certificate-name ${ALBCertificate} --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)
-                    echo Sleeping so IAM can propogate the certificate...
-                    sleep 100
-                    echo Removing key files...
-                    sudo rm /tmp/*.pem
-                    fi
-                    echo Creating ELB HTTPS listener using the cert stored in the environment variable...
-                    aws elbv2 create-listener --load-balancer-arn ${rDashboardALB} --protocol HTTPS --port 443 --default-actions Type=forward,TargetGroupArn=${rDashboardALBTargetGroupHTTP} --certificates CertificateArn="$cert_arn" --ssl-policy ELBSecurityPolicy-2015-05
+                if reason is not None:
+                    response['Reason'] = reason
 
-                    echo Updating Elasticsearch AccessPolicy
-                    aws es update-elasticsearch-domain-config  --domain-name ${pESDomainName} --access-policies \
-                    '{"Version":"2012-10-17","Statement":[{"Sid":"IP restriction","Effect":"Allow","Principal":{"AWS":"*"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*","Condition":{"IpAddress":{"aws:SourceIp":"${pNatEIP}"}}},{"Sid":"EC2-Role restriction","Effect":"Allow","Principal":{"AWS":"${rLambdaESRole.Arn}"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*"}]}'
-                    echo Self-destruct!
-                    aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
-                    echo *** ELB HTTPS configuration complete ***
-                  - { ALBCertificate: !FindInMap ['Variables', 'ALBCertificate', 'Name'] }
+                if 'ResponseURL' in request and request['ResponseURL']:
+                    url = urlparse.urlparse(request['ResponseURL'])
+                    body = json.dumps(response)
+                    https = httplib.HTTPSConnection(url.hostname)
+                    https.request('PUT', url.path+'?'+url.query, body)
+
+                return response
+
+            def lambda_handler(event, context):
+
+                response = {
+                    'StackId': event['StackId'],
+                    'RequestId': event['RequestId'],
+                    'LogicalResourceId': event['LogicalResourceId'],
+                    'Status': 'SUCCESS'
+                }
+
+                if 'PhysicalResourceId' in event:
+                    response['PhysicalResourceId'] = event['PhysicalResourceId']
+                else:
+                    response['PhysicalResourceId'] = str(uuid.uuid4())
+
+                if event['RequestType'] == 'Delete':
+                    return send_response(event, response)
+
+                try:
+                    s3 = boto3.client('s3')
+                    target_bucket = '${rS3LocalArtifactsBucket}'
+                    source_bucket = '${QSS3BucketName}'
+                    objects = event['ResourceProperties']['Objects']
+                    response['Data'] = {}
+                    for key in objects:
+                        copy_source = {'Bucket':source_bucket, 'Key':key}
+                        print 'Copying %s from bucket %s to bucket %s ...' % (key, source_bucket, target_bucket)
+                        s3.copy_object(Bucket=target_bucket, Key=key, CopySource=copy_source)
+                    response['Data'] = {}
+                    response['Reason'] = 'S3 Copy was successful.'
+                except Exception as E:
+                    template = 'An exception of type {0} occured. Arguments:\n{1!r}'
+                    message = template.format(type(E).__name__, E.args)
+                    print message
+                    response['Status'] = 'FAILED'
+                    response['Reason'] = 'S3 Copy Failed - See CloudWatch logs for the Lamba function backing the custom resource for details'
+
+                return send_response(event, response)
+  rCopyArtifacts:
+    Type: Custom::CopyArtifacts
+    DependsOn:
+      - rCopyArtifactsFunction
+    Properties:
+      ServiceToken: !GetAtt rCopyArtifactsFunction.Arn
+      Objects:
+        - !Sub
+          - ${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
+          - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
+            Key: !FindInMap [ Artifacts, Parser, S3Key ]
+  rLambdaESRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowLambda
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: rLambdaESRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowForLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: [ 'arn:aws:logs:*:*:*' ]
+              - Sid: AllowForElasticsearch
+                Effect: Allow
+                Action:
+                  - es:ESHttpPost
+                  - es:ESHttpPut
+                  - es:DescribeElasticsearchDomain
+                Resource: !GetAtt rElasticSearchDomain.DomainArn
+              - Effect: Allow
+                Action: lambda:GetFunction
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                Resource: '*'
+  rLambdaFnCloudWatchLogsToElasticsearch:
+    DependsOn:
+      - rElasticSearchDomain
+      - rCopyArtifacts
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref pS3ArtifactsBucket
+        S3Key:
+          !Sub
+            - ${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
+            - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
+              Key: !FindInMap [ Artifacts, Parser, S3Key ]
+      Description: Submits FlowLog data stream to Elasticsearch
+      Handler: eoh-parser.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt rLambdaESRole.Arn
+      Runtime: python2.7
+      Timeout: 180
+  rLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - rLambdaFnCloudWatchLogsToElasticsearch
+    Properties:
+      FunctionName: !GetAtt rLambdaFnCloudWatchLogsToElasticsearch.Arn
+      Action: lambda:InvokeFunction
+      Principal: !Sub logs.${AWS::Region}.amazonaws.com
+
+
+  rPostProcInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: PostProcPermissions
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: UploadServerCertificate
+                Effect: Allow
+                Action:
+                  - iam:ListServerCertificates
+                  - iam:UploadServerCertificate
+                Resource:
+                  - '*'
+              - Sid: CreateListener
+                Effect: Allow
+                Action:
+                  - elasticloadbalancing:CreateListener
+                Resource:
+                  - '*'
+              - Sid: UpdateESPolicy
+                Effect: Allow
+                Action:
+                  - es:UpdateElasticsearchDomainConfig
+                Resource:
+                  - '*'
+              - Sid: SelfDestruct
+                Effect: Allow
+                Action:
+                  - ec2:TerminateInstances
+                Resource:
+                  - '*'
+  rPostProcInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref rPostProcInstanceRole
+  rPostProcInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - rDashboardLaunchConfiguration
+      - rDashboardAutoscalingGroup
+      - rElasticSearchDomain
+    Properties:
+      ImageId: !Ref pAppAMI
+      InstanceType: !Ref pDashboardInstanceType
+      IamInstanceProfile: !Ref rPostProcInstanceProfile
+      SubnetId: !Ref pAppSubnetId1
+      SecurityGroupIds:
+        - !Ref rDashboardSecurityGroup
+      UserData: !Base64
+        'Fn::Sub':
+          - |
+            #!/bin/bash -xe
+            echo Configure the region, necessary especially for GovCloud
+            aws configure set region ${AWS::Region}
+
+            echo Determine whether a certificate needs to be generated
+            cert_arn=$(aws iam list-server-certificates --query 'ServerCertificateMetadataList[?ServerCertificateName==`${ALBCertificate}`].Arn' --output text)
+            if [[ $(echo "$cert_arn" | grep "${ALBCertificate}") != *"${ALBCertificate}"* ]]; then
+            echo *** Beginnning ELB HTTPS configuration ***
+            echo Generating private key...
+            sudo openssl genrsa -out /tmp/my-private-key.pem 2048
+            echo Creating CSR
+            sudo openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj "/C=GB/ST=London/L=London/O=SIRS Jam/OU=Challenge 2/CN=challenge2.secjam.com"
+            echo Self-signing certificate...
+            sudo openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem
+            sudo openssl rsa -in /tmp/my-private-key.pem -outform PEM
+            echo Converting private key...
+            sudo openssl x509 -inform PEM -in /tmp/my-certificate.pem
+            echo Uploading key to AWS IAM and saving ARN to environment variable...
+            cert_arn=$(aws iam upload-server-certificate --server-certificate-name ${ALBCertificate} --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)
+            echo Sleeping so IAM can propogate the certificate...
+            sleep 100
+            echo Removing key files...
+            sudo rm /tmp/*.pem
+            fi
+            echo Creating ELB HTTPS listener using the cert stored in the environment variable...
+            aws elbv2 create-listener --load-balancer-arn ${rDashboardALB} --protocol HTTPS --port 443 --default-actions Type=forward,TargetGroupArn=${rDashboardALBTargetGroupHTTP} --certificates CertificateArn="$cert_arn" --ssl-policy ELBSecurityPolicy-2015-05
+
+            echo Updating Elasticsearch AccessPolicy
+            aws es update-elasticsearch-domain-config  --domain-name ${pESDomainName} --access-policies \
+            '{"Version":"2012-10-17","Statement":[{"Sid":"IP restriction","Effect":"Allow","Principal":{"AWS":"*"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*","Condition":{"IpAddress":{"aws:SourceIp":"${pNatEIP}"}}},{"Sid":"EC2-Role restriction","Effect":"Allow","Principal":{"AWS":"${rLambdaESRole.Arn}"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*"}]}'
+            echo Self-destruct!
+            aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
+            echo *** ELB HTTPS configuration complete ***
+          - { ALBCertificate: !FindInMap ['Variables', 'ALBCertificate', 'Name'] }

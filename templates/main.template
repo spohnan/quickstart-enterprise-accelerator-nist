@@ -357,9 +357,22 @@ Conditions:
     - dedicated
   LaunchCentralLogging:
     !And
-    - !Equals [ true, !Ref pLaunchCentralLogging ]
-    - !Equals [ true, !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', Lambda ] ]
-    - !Equals [ true, !FindInMap [ RegionServiceSupport, !Ref 'AWS::Region', ElasticSearch ] ]
+    - !Equals
+      - true
+      - !Ref pLaunchCentralLogging
+    - !Equals
+      - true
+      - !FindInMap
+        - RegionServiceSupport
+        - !Ref 'AWS::Region'
+        - Lambda
+    - !Equals
+      - true
+      - !FindInMap
+        - RegionServiceSupport
+        - !Ref 'AWS::Region'
+        - ElasticSearch
+
 Resources:
   IamTemplate:
     Type: AWS::CloudFormation::Stack
@@ -552,26 +565,61 @@ Resources:
     Properties:
       TemplateURL: !Sub
         - ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/templates/central-logging.template
-        - { QuickStartS3URL: !FindInMap [ AWSInfoRegionMap, !Ref 'AWS::Region', QuickStartS3URL ] }
+        - QuickStartS3URL:
+            !FindInMap
+            - AWSInfoRegionMap
+            - !Ref 'AWS::Region'
+            - QuickStartS3URL
       TimeoutInMinutes: 60
       Parameters:
-        pAppSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetA ]
-        pAppSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementPrivateSubnetB ]
-        pDashboardSubnetId1: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetA ]
-        pDashboardSubnetId2: !GetAtt [ ManagementVpcTemplate, Outputs.rManagementDMZSubnetB ]
+        pAppSubnetId1:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rManagementPrivateSubnetA
+        pAppSubnetId2:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rManagementPrivateSubnetB
+        pDashboardSubnetId1:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rManagementDMZSubnetA
+        pDashboardSubnetId2:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rManagementDMZSubnetB
         pS3ArtifactsBucket: !Ref QSS3BucketName
         pS3ArtifactsKeyPrefix: !Ref QSS3KeyPrefix
-        pNatEIP: !GetAtt [ ManagementVpcTemplate, Outputs.rEIPManagementNAT ]
+        pNatEIP:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rEIPManagementNAT
         pESDomainName: !Sub ${AWS::StackName}
-        pAppAMI: !FindInMap [ RegionMap, !Ref 'AWS::Region', AMI ]
-        pVpcId: !GetAtt [ ManagementVpcTemplate, Outputs.rVPCManagement ]
+        pAppAMI:
+            !FindInMap
+            - AWSAMIRegionMap
+            - !Ref 'AWS::Region'
+            - AMZNLINUXHVM
+        pVpcId:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rVPCManagement
         pESNodeCount: 2
         pESNodeSize: t2.medium.elasticsearch
         pESNodeStorage: 20
-        pDashboardInstanceType: !FindInMap [ RegionMap, !Ref 'AWS::Region', InstanceType ]
+        pDashboardInstanceType:
+            !FindInMap
+            - AWSAMIRegionMap
+            - !Ref 'AWS::Region'
+            - InstanceType
         pDashboardAdminUser: !Ref pDashboardAdminUser
         pDashboardAdminPassword: !Ref pDashboardAdminPassword
-        pAllowBastionSecurityGroup: !GetAtt [ ManagementVpcTemplate, Outputs.rSecurityGroupSSHFromMgmt ]
+        pAllowBastionSecurityGroup:
+          !GetAtt
+          - ManagementVpcTemplate
+          - Outputs.rSecurityGroupSSHFromMgmt
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
   ApplicationTemplate:
     Type: AWS::CloudFormation::Stack
     DependsOn: ProductionVpcTemplate
