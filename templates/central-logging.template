@@ -739,3 +739,6 @@ Resources:
             aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
             echo *** ELB HTTPS configuration complete ***
           - { ALBCertificate: !FindInMap ['Variables', 'ALBCertificate', 'Name'] }
+Outputs:
+  DashboardURL:
+    Value: !Sub https://${rDashboardALB.DNSName}/_plugin/kibana/#/dashboard/Sample-Dashboard

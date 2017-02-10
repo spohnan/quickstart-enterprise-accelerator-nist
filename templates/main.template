@@ -773,6 +773,12 @@ Outputs:
       !GetAtt
       - ApplicationTemplate
       - Outputs.WebsiteURL
+  CentralLoggingDashboardURL:
+    Condition: LaunchCentralLogging
+    Value:
+      !GetAtt
+      - CentralLoggingTemplate
+      - Outputs.DashboardURL
   Help:
     Description: For assistance or questions regarding this quickstart please email
       compliance-accelerator@amazon.com
