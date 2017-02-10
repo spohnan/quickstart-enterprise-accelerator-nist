@@ -10,13 +10,13 @@ Mappings:
       Value: ''
     Custom:
       Value: ''
-  Artifacts:
+  Assets:
     Dashboard:
-      S3Key: artifacts/central-logging/dashboard.json
+      S3Key: assets/central-logging/dashboard.json
     ESTools:
-      S3Key: artifacts/central-logging/es_tools-0.1.3.tar.gz
+      S3Key: assets/central-logging/es_tools-0.1.4.tar.gz
     Parser:
-      S3Key: artifacts/central-logging/eoh-parser.zip
+      S3Key: assets/central-logging/parser.zip
   Variables:
     ALBCertificate:
       Name: central-logging-test-cert
@@ -33,10 +33,10 @@ Parameters:
   pDashboardSubnetId2:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet where the Dashboard will live.
-  pS3ArtifactsBucket:
+  pS3AssetsBucket:
     Type: String
-    Description: S3 bucket where relevant artifacts are held.
-  pS3ArtifactsKeyPrefix:
+    Description: S3 bucket where relevant assets are held.
+  pS3AssetsKeyPrefix:
     Type: String
     Default: ''
   pNatEIP:
@@ -94,6 +94,14 @@ Parameters:
     Description: Enable SSH access via port 22
     Type: String
     Default: ''
+  pFlowLogGroup:
+    Type: String
+    Description: Capture Flow Logs in central logging?
+    Default: ''
+  pCloudTrailLogGroup:
+    Type: String
+    Description: Capture CloudTrail in central logging?
+    Default: ''
   QSS3BucketName:
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$
     ConstraintDescription: Quick Start bucket name can include numbers, lowercase letters, uppercase letters, periods (.), and hyphens (-). It cannot start or end with a hyphen (-).
@@ -107,7 +115,9 @@ Parameters:
     Description: S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.
     Type: String
 Conditions:
-  TrailingSlashNeeded: !Not [ !Equals [ !Ref pS3ArtifactsKeyPrefix, '' ] ]
+  cTrailingSlashNeeded: !Not [ !Equals [ !Ref pS3AssetsKeyPrefix, '' ] ]
+  cCaptureFlowLogs: !Not [ !Equals [ !Ref pFlowLogGroup, '' ] ]
+  cCaptureCloudTrail: !Not [ !Equals [ !Ref pCloudTrailLogGroup, '' ] ]
 Resources:
   rDashboardInstanceRole:
     Type: AWS::IAM::Role
@@ -122,31 +132,35 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: /
-      Policies:
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: GetServerCertificate
-                Effect: Allow
-                Action:
-                  - s3:Get*
-                  - s3:List*
-                  - s3:Head*
-                Resource:
-                  - !Sub
-                    - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}*
-                    - { SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
-                  - !Sub arn:aws:s3:::${pS3ArtifactsBucket}
-        - PolicyName: ESAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: AllowForElasticsearch
-                Effect: Allow
-                Action:
-                  - es:*
-                Resource: !GetAtt [ rElasticSearchDomain, DomainArn ]
+  rDashboardInstancePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: GetServerCertificate
+            Effect: Allow
+            Action:
+              - s3:Get*
+              - s3:List*
+              - s3:Head*
+            Resource:
+              - !Sub
+                - arn:aws:s3:::${pS3AssetsBucket}/${pS3AssetsKeyPrefix}${SlashIfNeeded}*
+                - { SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ] }
+              - !Sub arn:aws:s3:::${pS3AssetsBucket}
+          - Sid: AllowForElasticsearch
+            Effect: Allow
+            Action:
+              - es:ESHttpDelete
+              - es:ESHttpGet
+              - es:ESHttpHead
+              - es:ESHttpPost
+              - es:ESHttpPut
+              - es:DescribeElasticsearchDomain
+            Resource: !GetAtt rElasticSearchDomain.DomainArn
+      Roles:
+        - !Ref rDashboardInstanceRole
   rDashboardInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -171,13 +185,14 @@ Resources:
         - Key: Name
           Value: central-logging-sg
   rDashboardLaunchConfiguration:
-    DependsOn:
-      - rDashboardSecurityGroup
     Type: AWS::AutoScaling::LaunchConfiguration
     Metadata:
       AWS::CloudFormation::Init:
         configSets:
-          dashboard_install: [ install_cfn, install_nginx, install_estool ]
+          dashboard_install:
+            - install_cfn
+            - install_nginx
+            - install_estool
         install_cfn:
           files:
             '/etc/cfn/cfn-hup.conf':
@@ -254,16 +269,16 @@ Resources:
           commands:
             0-git_clone:
               command: !Sub
-                - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
-                - { Key: !FindInMap [ Artifacts, ESTools, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
+                - curl -k -O https://${pS3AssetsBucket}.s3.amazonaws.com/${pS3AssetsKeyPrefix}${SlashIfNeeded}${Key}
+                - { Key: !FindInMap [ Assets, ESTools, S3Key ], SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ] }
               cwd: /home/ec2-user
             1-python_setup:
-              command: pip install es_tools-0.1.3.tar.gz
+              command: pip install es_tools-0.1.4.tar.gz
               cwd: /home/ec2-user
             2-kibana_index:
               command: !Sub
-                - wget https://${pS3ArtifactsBucket}.s3.amazonaws.com/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key} --no-check-certificate
-                - { Key: !FindInMap [ Artifacts, Dashboard, S3Key ], SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ] }
+                - curl -k -O https://${pS3AssetsBucket}.s3.amazonaws.com/${pS3AssetsKeyPrefix}${SlashIfNeeded}${Key}
+                - { Key: !FindInMap [ Assets, Dashboard, S3Key ], SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ] }
               cwd: /tmp/
             3-import_dashboard:
               command: sh /tmp/es.sh
@@ -271,6 +286,7 @@ Resources:
       ImageId: !Ref pAppAMI
       InstanceType: !Ref pDashboardInstanceType
       IamInstanceProfile: !Ref rDashboardInstanceProfile
+      KeyName: iad
       UserData: !Base64
         'Fn::Sub': |
           #!/bin/bash -x
@@ -368,8 +384,37 @@ Resources:
           CidrIp: 0.0.0.0/0
   rElasticSearchDomain:
     Type: AWS::Elasticsearch::Domain
+    DependsOn:
+      - rLambdaESRole
+      - rDashboardInstanceRole
     Properties:
       DomainName: !Ref pESDomainName
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+        - Sid: IP restriction
+          Effect: Allow
+          Principal:
+            AWS: '*'
+          Action: 'es:*'
+          Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*
+          Condition:
+            IpAddress:
+              aws:SourceIp: !Ref pNatEIP
+        - Sid: EC2-Role restriction
+          Effect: Allow
+          Principal:
+            AWS:
+              - !GetAtt rLambdaESRole.Arn
+              - !GetAtt rDashboardInstanceRole.Arn
+          Action:
+            - es:ESHttpDelete
+            - es:ESHttpGet
+            - es:ESHttpHead
+            - es:ESHttpPost
+            - es:ESHttpPut
+            - es:DescribeElasticsearchDomain
+          Resource: !Sub arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*
       ElasticsearchVersion: 2.3
       ElasticsearchClusterConfig:
         InstanceCount: !Ref pESNodeCount
@@ -380,12 +425,12 @@ Resources:
         VolumeSize: !Ref pESNodeStorage
         VolumeType: gp2
 
-  rS3LocalArtifactsBucket:
+  rS3LocalAssetsBucket:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
-    DeletionPolicy: Delete
-  rCopyArtifactsRole:
+    DeletionPolicy: Retain
+  rCopyAssetsRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -398,7 +443,7 @@ Resources:
             Action: sts:AssumeRole
       Path: /
       Policies:
-        - PolicyName: CopyArtifacts
+        - PolicyName: CopyAssets
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -409,15 +454,15 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${pS3ArtifactsBucket}/${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
-                    - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
-                      Key: !FindInMap [ Artifacts, Parser, S3Key ]
+                    - arn:aws:s3:::${pS3AssetsBucket}/${pS3AssetsKeyPrefix}${SlashIfNeeded}${Key}
+                    - SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ]
+                      Key: !FindInMap [ Assets, Parser, S3Key ]
               - Sid: AllowS3Put
                 Effect: Allow
                 Action:
                   - s3:PutObject
                 Resource:
-                  - !Sub arn:aws:s3:::${rS3LocalArtifactsBucket}/*
+                  - !Sub arn:aws:s3:::${rS3LocalAssetsBucket}/*
               - Sid: AllowForLogs
                 Effect: Allow
                 Action:
@@ -425,11 +470,11 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: [ 'arn:aws:logs:*:*:*' ]
-  rCopyArtifactsFunction:
+  rCopyAssetsFunction:
     Type: AWS::Lambda::Function
     Properties:
       Handler: index.lambda_handler
-      Role: !GetAtt rCopyArtifactsRole.Arn
+      Role: !GetAtt rCopyAssetsRole.Arn
       Runtime: python2.7
       Timeout: 120
       Code:
@@ -475,7 +520,7 @@ Resources:
 
                 try:
                     s3 = boto3.client('s3')
-                    target_bucket = '${rS3LocalArtifactsBucket}'
+                    target_bucket = '${rS3LocalAssetsBucket}'
                     source_bucket = '${QSS3BucketName}'
                     objects = event['ResourceProperties']['Objects']
                     response['Data'] = {}
@@ -493,17 +538,17 @@ Resources:
                     response['Reason'] = 'S3 Copy Failed - See CloudWatch logs for the Lamba function backing the custom resource for details'
 
                 return send_response(event, response)
-  rCopyArtifacts:
-    Type: Custom::CopyArtifacts
+  rCopyAssets:
+    Type: Custom::CopyAssets
     DependsOn:
-      - rCopyArtifactsFunction
+      - rCopyAssetsFunction
     Properties:
-      ServiceToken: !GetAtt rCopyArtifactsFunction.Arn
+      ServiceToken: !GetAtt rCopyAssetsFunction.Arn
       Objects:
         - !Sub
-          - ${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
-          - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
-            Key: !FindInMap [ Artifacts, Parser, S3Key ]
+          - ${pS3AssetsKeyPrefix}${SlashIfNeeded}${Key}
+          - SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ]
+            Key: !FindInMap [ Assets, Parser, S3Key ]
   rLambdaESRole:
     Type: AWS::IAM::Role
     Properties:
@@ -516,62 +561,89 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Path: /
-      Policies:
-        - PolicyName: rLambdaESRole
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: AllowForLogs
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: [ 'arn:aws:logs:*:*:*' ]
-              - Sid: AllowForElasticsearch
-                Effect: Allow
-                Action:
-                  - es:ESHttpPost
-                  - es:ESHttpPut
-                  - es:DescribeElasticsearchDomain
-                Resource: !GetAtt rElasticSearchDomain.DomainArn
-              - Effect: Allow
-                Action: lambda:GetFunction
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - iam:GetRolePolicy
-                  - iam:ListRolePolicies
-                Resource: '*'
+  rLambdaESPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowForLogs
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              - 'arn:aws:logs:*:*:*'
+          - Sid: AllowForElasticsearch
+            Effect: Allow
+            Action:
+              - es:ESHttpPost
+              - es:ESHttpPut
+              - es:DescribeElasticsearchDomain
+            Resource: !GetAtt rElasticSearchDomain.DomainArn
+          - Effect: Allow
+            Action: lambda:GetFunction
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - iam:GetRolePolicy
+              - iam:ListRolePolicies
+            Resource: '*'
+      Roles:
+        - !Ref rLambdaESRole
   rLambdaFnCloudWatchLogsToElasticsearch:
-    DependsOn:
-      - rElasticSearchDomain
-      - rCopyArtifacts
     Type: AWS::Lambda::Function
     Properties:
       Code:
-        S3Bucket: !Ref pS3ArtifactsBucket
+        S3Bucket: !Ref pS3AssetsBucket
         S3Key:
           !Sub
-            - ${pS3ArtifactsKeyPrefix}${SlashIfNeeded}${Key}
-            - SlashIfNeeded: !If [ TrailingSlashNeeded, '/', '' ]
-              Key: !FindInMap [ Artifacts, Parser, S3Key ]
+            - ${pS3AssetsKeyPrefix}${SlashIfNeeded}${Key}
+            - SlashIfNeeded: !If [ cTrailingSlashNeeded, '/', '' ]
+              Key: !FindInMap [ Assets, Parser, S3Key ]
       Description: Submits FlowLog data stream to Elasticsearch
       Handler: eoh-parser.lambda_handler
       MemorySize: 128
       Role: !GetAtt rLambdaESRole.Arn
       Runtime: python2.7
       Timeout: 180
+      Environment:
+        Variables:
+          ES_ENDPOINT: !GetAtt rElasticSearchDomain.DomainEndpoint
   rLambdaInvokePermission:
     Type: AWS::Lambda::Permission
-    DependsOn:
-      - rLambdaFnCloudWatchLogsToElasticsearch
     Properties:
       FunctionName: !GetAtt rLambdaFnCloudWatchLogsToElasticsearch.Arn
       Action: lambda:InvokeFunction
       Principal: !Sub logs.${AWS::Region}.amazonaws.com
 
-
+  rFlowLogSubscriptionFilter:
+    Condition: cCaptureFlowLogs
+    DependsOn:
+      - rLambdaInvokePermission
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+        LogGroupName: !Ref pFlowLogGroup
+        DestinationArn: !GetAtt rLambdaFnCloudWatchLogsToElasticsearch.Arn
+        FilterPattern:
+          !FindInMap
+           - LogFormats
+           - AmazonVPCFlowLogs
+           - Value
+  rCloudTrailSubscriptionFilter:
+    Condition: cCaptureCloudTrail
+    DependsOn:
+      - rLambdaInvokePermission
+    Properties:
+      LogGroupName: !Ref pCloudTrailLogGroup
+      DestinationArn: !GetAtt rLambdaFnCloudWatchLogsToElasticsearch.Arn
+      FilterPattern:
+        !FindInMap
+         - LogFormats
+         - AWSCloudTrail
+         - Value
+    Type: AWS::Logs::SubscriptionFilter
   rPostProcInstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -624,9 +696,7 @@ Resources:
   rPostProcInstance:
     Type: AWS::EC2::Instance
     DependsOn:
-      - rDashboardLaunchConfiguration
-      - rDashboardAutoscalingGroup
-      - rElasticSearchDomain
+      - rDashboardALB
     Properties:
       ImageId: !Ref pAppAMI
       InstanceType: !Ref pDashboardInstanceType
@@ -657,16 +727,14 @@ Resources:
             echo Uploading key to AWS IAM and saving ARN to environment variable...
             cert_arn=$(aws iam upload-server-certificate --server-certificate-name ${ALBCertificate} --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)
             echo Sleeping so IAM can propogate the certificate...
-            sleep 100
+            sleep 120
             echo Removing key files...
             sudo rm /tmp/*.pem
             fi
             echo Creating ELB HTTPS listener using the cert stored in the environment variable...
             aws elbv2 create-listener --load-balancer-arn ${rDashboardALB} --protocol HTTPS --port 443 --default-actions Type=forward,TargetGroupArn=${rDashboardALBTargetGroupHTTP} --certificates CertificateArn="$cert_arn" --ssl-policy ELBSecurityPolicy-2015-05
 
-            echo Updating Elasticsearch AccessPolicy
-            aws es update-elasticsearch-domain-config  --domain-name ${pESDomainName} --access-policies \
-            '{"Version":"2012-10-17","Statement":[{"Sid":"IP restriction","Effect":"Allow","Principal":{"AWS":"*"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*","Condition":{"IpAddress":{"aws:SourceIp":"${pNatEIP}"}}},{"Sid":"EC2-Role restriction","Effect":"Allow","Principal":{"AWS":"${rLambdaESRole.Arn}"},"Action":"es:*","Resource":"arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${pESDomainName}/*"}]}'
+            sleep 120
             echo Self-destruct!
             aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
             echo *** ELB HTTPS configuration complete ***
