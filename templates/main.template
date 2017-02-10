@@ -127,6 +127,13 @@ Parameters:
       - false
     Default: false
     Type: String
+  pUseFlowLogs:
+    Description: Do you want to enable flow logs for the VPCs?
+    AllowedValues:
+      - true
+      - false
+    Default: false
+    Type: String
   pDashboardAdminUser:
     Type: String
     Description: Dashboard admin user name.
@@ -372,7 +379,10 @@ Conditions:
         - RegionServiceSupport
         - !Ref 'AWS::Region'
         - ElasticSearch
-
+  EnableFlowLogs:
+    !Equals
+     - !Ref pUseFlowLogs
+     - true
 Resources:
   IamTemplate:
     Type: AWS::CloudFormation::Stack
@@ -405,6 +415,9 @@ Resources:
           - RegionServiceSupport
           - !Ref AWS::Region
           - Glacier
+  VpcFlowLogGroup:
+    Condition: EnableFlowLogs
+    Type: AWS::Logs::LogGroup
   ProductionVpcTemplate:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -451,6 +464,11 @@ Resources:
           - AWSAMIRegionMap
           - !Ref AWS::Region
           - InstanceType
+        pFlowLogGroup:
+          !If
+           - EnableFlowLogs
+           - !Ref VpcFlowLogGroup
+           - ''
         QuickStartS3URL:
           !FindInMap
           - AWSInfoRegionMap
@@ -527,6 +545,11 @@ Resources:
           - AWSAMIRegionMap
           - !Ref AWS::Region
           - InstanceType
+        pFlowLogGroup:
+          !If
+           - EnableFlowLogs
+           - !Ref VpcFlowLogGroup
+           - ''
         QuickStartS3URL:
           !FindInMap
           - AWSInfoRegionMap
@@ -560,7 +583,9 @@ Resources:
           - Value
   CentralLoggingTemplate:
     Condition: LaunchCentralLogging
-    DependsOn: ManagementVpcTemplate
+    DependsOn:
+      - ManagementVpcTemplate
+      - ProductionVpcTemplate
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Sub
@@ -588,8 +613,8 @@ Resources:
           !GetAtt
           - ManagementVpcTemplate
           - Outputs.rManagementDMZSubnetB
-        pS3ArtifactsBucket: !Ref QSS3BucketName
-        pS3ArtifactsKeyPrefix: !Ref QSS3KeyPrefix
+        pS3AssetsBucket: !Ref QSS3BucketName
+        pS3AssetsKeyPrefix: !Ref QSS3KeyPrefix
         pNatEIP:
           !GetAtt
           - ManagementVpcTemplate
@@ -618,6 +643,15 @@ Resources:
           !GetAtt
           - ManagementVpcTemplate
           - Outputs.rSecurityGroupSSHFromMgmt
+        pFlowLogGroup:
+          !If
+           - EnableFlowLogs
+           - !Ref VpcFlowLogGroup
+           - ''
+        pCloudTrailLogGroup:
+          !GetAtt
+          - LoggingTemplate
+          - Outputs.rCloudTrailLogGroup
         QSS3BucketName: !Ref QSS3BucketName
         QSS3KeyPrefix: !Ref QSS3KeyPrefix
   ApplicationTemplate:
