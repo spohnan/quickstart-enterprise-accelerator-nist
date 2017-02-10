@@ -481,6 +481,35 @@ Resources:
           Value: Proxy ELB
         - Key: Environment
           Value: !Ref pEnvironment
+  rWebInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3Assets
+          PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Sid: DescribeVolumes
+                  Effect: Allow
+                  Action:
+                    - ec2:DescribeVolumes
+                  Resource: '*'
+  rWebInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref rWebInstanceRole
   rAutoScalingConfigWeb:
     Type: AWS::AutoScaling::LaunchConfiguration
     DependsOn:
@@ -535,7 +564,14 @@ Resources:
     Properties:
       AssociatePublicIpAddress: true
       ImageId: !Ref pWebServerAMI
+      IamInstanceProfile: !Ref rWebInstanceProfile
       InstanceType: !Ref pWebInstanceType
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdh
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp2
+            Encrypted: true
       KeyName: !Ref pEC2KeyPair
       SecurityGroups:
         - !Ref rSecurityGroupWebInstance
@@ -543,6 +579,36 @@ Resources:
         'Fn::Sub': |
           #!/bin/bash
           yum update -y
+
+          EC2_INSTANCE_ID=$(curl -s http://instance-data/latest/meta-data/instance-id)
+
+          ######################################################################
+          # Volume /dev/sdh (which will get created as /dev/xvdh on Amazon Linux)
+
+          DATA_STATE="unknown"
+          until [ "${!DATA_STATE}" == "attached" ]; do
+            DATA_STATE=$(aws ec2 describe-volumes \
+            --region ${AWS::Region} \
+            --filters \
+                  Name=attachment.instance-id,Values=${!EC2_INSTANCE_ID} \
+                  Name=attachment.device,Values=/dev/sdh \
+            --query Volumes[].Attachments[].State \
+            --output text)
+
+            sleep 5
+          done
+
+          # Format /dev/xvdh if it does not contain a partition yet
+          if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
+            mkfs -t ext4 /dev/xvdh
+          fi
+
+          mkdir -p /data
+          mount /dev/xvdh /data
+
+          # Persist the volume in /etc/fstab so it gets mounted again
+          echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
+
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingConfigWeb --region ${AWS::Region}
 
           ## Nginx setup
@@ -623,6 +689,35 @@ Resources:
           Value: !Ref rAutoScalingGroupWeb
       ComparisonOperator: LessThanThreshold
       MetricName: WebServerCpuLowUtilization
+  rAppInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3Assets
+          PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Sid: DescribeVolumes
+                  Effect: Allow
+                  Action:
+                    - ec2:DescribeVolumes
+                  Resource: '*'
+  rAppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref rAppInstanceRole
   rAutoScalingConfigApp:
     Type: AWS::AutoScaling::LaunchConfiguration
     DependsOn:
@@ -699,7 +794,14 @@ Resources:
                 ensureRunning: true
     Properties:
       ImageId: !Ref pAppAmi
+      IamInstanceProfile: !Ref rAppInstanceProfile
       InstanceType: !Ref pAppInstanceType
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdh
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp2
+            Encrypted: true
       KeyName: !Ref pEC2KeyPair
       SecurityGroups:
         - !Ref rSecurityGroupAppInstance
@@ -708,6 +810,36 @@ Resources:
           #!/bin/bash -x
 
           yum update -y
+
+          EC2_INSTANCE_ID=$(curl -s http://instance-data/latest/meta-data/instance-id)
+
+          ######################################################################
+          # Volume /dev/sdh (which will get created as /dev/xvdh on Amazon Linux)
+
+          DATA_STATE="unknown"
+          until [ "${!DATA_STATE}" == "attached" ]; do
+            DATA_STATE=$(aws ec2 describe-volumes \
+            --region ${AWS::Region} \
+            --filters \
+                  Name=attachment.instance-id,Values=${!EC2_INSTANCE_ID} \
+                  Name=attachment.device,Values=/dev/sdh \
+            --query Volumes[].Attachments[].State \
+            --output text)
+
+            sleep 5
+          done
+
+          # Format /dev/xvdh if it does not contain a partition yet
+          if [ "$(file -b -s /dev/xvdh)" == "data" ]; then
+            mkfs -t ext4 /dev/xvdh
+          fi
+
+          mkdir -p /data
+          mount /dev/xvdh /data
+
+          # Persist the volume in /etc/fstab so it gets mounted again
+          echo '/dev/xvdh /data ext4 defaults,nofail 0 2' >> /etc/fstab
+
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingConfigApp --configsets wordpress_install --region ${AWS::Region}
 
           ######################################################################
@@ -901,6 +1033,9 @@ Resources:
             --message "What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. Please note that the application server might be finishing up its initialization. If the link doesn't respond right away, please try it again in few minutes. This page resides on an application server in your new environment." \
             --region ${AWS::Region}
 
+          echo Sleeping for 2 minutes to allow CloudFormation to catch up
+          sleep 120
+
           echo Self-destruct!
           aws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}
           echo *** ELB HTTPS configuration complete ***
@@ -922,7 +1057,7 @@ Outputs:
     Value: !Ref rSecurityGroupRDS
   SurveyLink:
     Description: Please take a moment to complete the survey by clicking this link
-    Value: https://aws.au1.qualtrics.com/SE/?SID=SV_55sYYdtY1NhTTgN&qs=NIST
+    Value: https://aws.au1.qualtrics.com/SE/?SID=SV_55sYYdtY1NhTTgN&qs=${COMPLIANCE_SURVEY_LINK}
   Help:
     Description: For assistance or questions regarding this quickstart please email compliance-accelerator@amazon.com
     Value: ''
