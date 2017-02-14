@@ -21,6 +21,10 @@ Mappings:
     ALBCertificate:
       Name: central-logging-test-cert
 Parameters:
+  pEC2KeyPair:
+    Description: Key Name for Instance
+    Type: String
+    Default: ''
   pAppSubnetId1:
     Type: AWS::EC2::Subnet::Id
     Description: Subnet where ElasticSearch will live.
@@ -286,7 +290,7 @@ Resources:
       ImageId: !Ref pAppAMI
       InstanceType: !Ref pDashboardInstanceType
       IamInstanceProfile: !Ref rDashboardInstanceProfile
-      KeyName: iad
+      KeyName: !Ref pEC2KeyPair
       UserData: !Base64
         'Fn::Sub': |
           #!/bin/bash -x

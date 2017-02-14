@@ -597,6 +597,7 @@ Resources:
             - QuickStartS3URL
       TimeoutInMinutes: 60
       Parameters:
+        pEC2KeyPair: !Ref pEC2KeyPair
         pAppSubnetId1:
           !GetAtt
           - ManagementVpcTemplate
